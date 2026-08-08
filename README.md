@@ -239,6 +239,40 @@ npm --prefix frontend run test:e2e:live
 - 模型输出必须通过 Pydantic、工具权限和审批校验。
 - GitHub、数据库、对象存储和模型的真实验证必须单独配置，缺少授权时明确报告 `blocked`。
 
+## 生产验收与 IDEA 启动
+
+当前验收分支绑定 commit e15ef6472f8ee78c2c21912cf3798ddf4ad9c31a。先查看当前分支的门禁命令：
+
+~~~powershell
+python .\scripts\devmate\production_readiness.py --describe
+~~~
+
+完整本地环境（Windows PowerShell）：
+
+~~~powershell
+docker compose --profile full up -d --build --wait
+Invoke-WebRequest http://127.0.0.1:8000/health
+Invoke-WebRequest http://127.0.0.1:3100
+~~~
+
+轻量开发：
+
+~~~powershell
+uvicorn app.main:app --reload --port 8000
+npm --prefix frontend run dev -- --host 127.0.0.1
+~~~
+
+Java IDEA 不适用于本项目的 Python API。IntelliJ IDEA 需要安装 Python 插件；PyCharm 可直接打开仓库并运行 uvicorn app.main:app。PostgreSQL、Redis、Milvus、Elasticsearch、MinIO、Celery、Keycloak 和 OTel 仍按 Compose 启动。
+
+生产证据必须是 JSON 数组，且每一条包含当前 commit、命令、退出码、带时区时间戳和仓库相对原始结果路径：
+
+~~~powershell
+$sha = (git rev-parse HEAD).Trim()
+python .\scripts\devmate\production_readiness.py --evidence .\reports\production-v2\evidence.json --expected-commit $sha
+~~~
+
+退出码 0 表示全部门禁通过，1 表示已连接但断言失败，2 表示缺少服务、密钥或外部授权并保持 blocked。离线测试、Fake/Recorded 模型或旧 commit 证据都不能替代真实门禁。
+
 ## License
 
 Apache-2.0，详见 [LICENSE](LICENSE)。
