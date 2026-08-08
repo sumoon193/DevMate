@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import time
+from collections.abc import Callable
 from typing import Any
 
 from pymilvus import DataType, MilvusClient
@@ -23,11 +25,41 @@ class MilvusMemorySemanticIndex:
         host: str = "localhost",
         port: int = 19530,
         client: Any | None = None,
+        client_factory: Callable[..., Any] | None = None,
+        connection_attempts: int = 6,
+        retry_delay_seconds: float = 5.0,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._embedder = embedder
         self._dimension = dimension
-        self._client = client or MilvusClient(uri=f"http://{host}:{port}")
+        self._client = client or self._connect_client(
+            uri=f"http://{host}:{port}",
+            client_factory=client_factory or MilvusClient,
+            connection_attempts=connection_attempts,
+            retry_delay_seconds=retry_delay_seconds,
+            sleep=sleep,
+        )
         self._get_or_create_collection()
+
+    @staticmethod
+    def _connect_client(
+        *,
+        uri: str,
+        client_factory: Callable[..., Any],
+        connection_attempts: int,
+        retry_delay_seconds: float,
+        sleep: Callable[[float], None],
+    ) -> Any:
+        if connection_attempts < 1:
+            raise ValueError("connection_attempts must be positive")
+        for attempt in range(connection_attempts):
+            try:
+                return client_factory(uri=uri)
+            except Exception:
+                if attempt == connection_attempts - 1:
+                    raise
+                sleep(retry_delay_seconds)
+        raise AssertionError("unreachable")
 
     def _get_or_create_collection(self) -> None:
         if self._client.has_collection(COLLECTION_NAME):

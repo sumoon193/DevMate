@@ -87,3 +87,30 @@ async def test_milvus_memory_index_upsert_search_and_delete_are_tenant_scoped() 
     assert matches == [("mem_1", 0.91)]
     assert client.search_filter == 'tenant_id == "tenant_a"'
     assert client.delete_filter == 'memory_id == "mem_1" and tenant_id == "tenant_a"'
+
+
+def test_milvus_memory_index_retries_transient_client_startup_failure() -> None:
+    client = FakeMilvusClient()
+    attempts = 0
+    delays: list[float] = []
+
+    def create_client(*, uri: str) -> FakeMilvusClient:
+        nonlocal attempts
+        assert uri == "http://milvus:19530"
+        attempts += 1
+        if attempts < 3:
+            raise RuntimeError("Milvus Proxy is not ready yet")
+        return client
+
+    MilvusMemorySemanticIndex(
+        embedder=FakeEmbedder(),
+        dimension=2,
+        host="milvus",
+        client_factory=create_client,
+        connection_attempts=3,
+        retry_delay_seconds=0.25,
+        sleep=delays.append,
+    )
+
+    assert attempts == 3
+    assert delays == [0.25, 0.25]
