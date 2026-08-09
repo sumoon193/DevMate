@@ -269,14 +269,15 @@ Java IDEA 不适用于本项目的 Python API。IntelliJ IDEA 需要安装 Pytho
 
 ~~~powershell
 $sha = (git rev-parse HEAD).Trim()
-python .\scripts\devmate\production_readiness.py --evidence .\reports\production-v2\evidence.json --expected-commit $sha
+$centralRoot = "D:\Code\agent study" # change to your central governance checkout
+python (Join-Path $centralRoot "governance\project_status.py") devmate (Join-Path $centralRoot "reports\devmate\production-v2\evidence.json") --expected-commit $sha
 ~~~
 
 退出码 0 表示全部门禁通过，1 表示已连接但断言失败，2 表示缺少服务、密钥或外部授权并保持 blocked。离线测试、Fake/Recorded 模型或旧 commit 证据都不能替代真实门禁。
 
 ## Quantitative baseline and evidence
 
-The current acceptance branch has a reproducible record in the central governance repository: `reports/devmate/production-v2/quantitative-summary.json`. The local `/health` probe used 100 samples at concurrency 4: 100% success, P50 32.07 ms, P95 48.67 ms and P99 116.18 ms. This is a developer-machine health baseline, not a capacity limit or public SLA. Offline regression recorded 570 passed and 0 failed; Milvus startup retry, restart recovery and OTel/Phoenix local integration passed. Qwen/RAGAS, authenticated Keycloak browser flows, authenticated MinIO/Elasticsearch round-trips and public stability remain `blocked`.
+The current acceptance branch has a reproducible record in the central governance repository: `reports/devmate/production-v2/quantitative-summary.json`. The `/health` probe is retained only as a local smoke baseline and is explicitly `resume_eligible: false`; its latency must not be presented as QPS, capacity, or performance improvement. Offline regression recorded 570 passed and 0 failed. The deterministic landing evaluation covered 20 case-level and 11 trajectory-level badcases; injection, ACL, approval, cost-guard and recovery intercepts moved from 0% before controls to 100% after controls, while ungrounded-answer and duplicate-side-effect rates moved from 100% to 0%. This is a safety/evidence-control result, not semantic RAG Recall@K. Qwen/RAGAS, authenticated Keycloak browser flows, authenticated MinIO/Elasticsearch round-trips and public stability remain `blocked`.
 
 ## License
 
