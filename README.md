@@ -241,7 +241,8 @@ npm --prefix frontend run test:e2e:live
 
 ## 生产验收与 IDEA 启动
 
-当前验收分支绑定 commit e15ef6472f8ee78c2c21912cf3798ddf4ad9c31a。先查看当前分支的门禁命令：
+验收命令必须从被测试的 checkout 运行。先用 `$sha = (git rev-parse HEAD).Trim()` 记录当前 40 位 SHA；
+中央治理只接受所有证据均绑定该 SHA 的结果。再查看当前分支的门禁命令：
 
 ~~~powershell
 python .\scripts\devmate\production_readiness.py --describe
