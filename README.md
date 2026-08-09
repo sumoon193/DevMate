@@ -274,6 +274,10 @@ python .\scripts\devmate\production_readiness.py --evidence .\reports\production
 
 退出码 0 表示全部门禁通过，1 表示已连接但断言失败，2 表示缺少服务、密钥或外部授权并保持 blocked。离线测试、Fake/Recorded 模型或旧 commit 证据都不能替代真实门禁。
 
+## Quantitative baseline and evidence
+
+The current acceptance branch has a reproducible record in the central governance repository: `reports/devmate/production-v2/quantitative-summary.json`. The local `/health` probe used 100 samples at concurrency 4: 100% success, P50 32.07 ms, P95 48.67 ms and P99 116.18 ms. This is a developer-machine health baseline, not a capacity limit or public SLA. Offline regression recorded 570 passed and 0 failed; Milvus startup retry, restart recovery and OTel/Phoenix local integration passed. Qwen/RAGAS, authenticated Keycloak browser flows, authenticated MinIO/Elasticsearch round-trips and public stability remain `blocked`.
+
 ## License
 
 Apache-2.0，详见 [LICENSE](LICENSE)。
