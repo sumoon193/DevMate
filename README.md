@@ -269,7 +269,7 @@ Java IDEA 不适用于本项目的 Python API。IntelliJ IDEA 需要安装 Pytho
 
 ~~~powershell
 $sha = (git rev-parse HEAD).Trim()
-$centralRoot = "D:\Code\agent study" # change to your central governance checkout
+$centralRoot = Read-Host "Central governance checkout path"
 python (Join-Path $centralRoot "governance\project_status.py") devmate (Join-Path $centralRoot "reports\devmate\production-v2\evidence.json") --expected-commit $sha
 ~~~
 
