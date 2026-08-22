@@ -12,7 +12,6 @@ from app.devmate.eval import (
     CaseCommand,
     DM13Input,
     DM13Result,
-    DimensionMetric,
     EvalReport,
 )
 from app.devmate.observability import MetricSample, MetricsRegistry
@@ -29,7 +28,9 @@ def _samples() -> tuple[MetricSample, ...]:
     )
 
 
-def _input(*, case_id: str = "case-1", metrics: tuple[MetricSample, ...] | None = None) -> DM13Input:
+def _input(
+    *, case_id: str = "case-1", metrics: tuple[MetricSample, ...] | None = None
+) -> DM13Input:
     return DM13Input(
         case_id=case_id,
         metrics=metrics if metrics is not None else _samples(),

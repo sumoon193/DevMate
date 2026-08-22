@@ -1,4 +1,5 @@
 """长期 Case、事件游标和 SSE API。"""
+
 from __future__ import annotations
 
 import json
@@ -33,7 +34,7 @@ def _execution_manifest(container: ServiceContainer) -> ExecutionManifest:
         model_version="configured",
         prompt_version="grounded-answer-v1",
         skill_versions={"hr_onboarding": "1.0.0"},
-        tool_schema_versions={"create_mock_hr_ticket": "1"},
+        tool_schema_versions={"create_hr_ticket": "1"},
         policy_version="hr-policy-2026-01",
         retrieval_version="hybrid-rrf-rerank-v1",
         context_strategy_version="write-select-compress-isolate-v1",
@@ -204,11 +205,7 @@ async def get_case_events(
     """读取游标之后的持久事件。"""
     await container.case_service.get_case(case_id)
     stream = await container.event_store.load_stream(case_id)
-    events = [
-        event
-        for event in stream
-        if event.sequence > after_sequence
-    ]
+    events = [event for event in stream if event.sequence > after_sequence]
     return CaseEventPage(
         case_id=case_id,
         after_sequence=after_sequence,
@@ -226,11 +223,7 @@ async def stream_case_events(
     """按 Event Store sequence 输出可断线恢复的 SSE。"""
     await container.case_service.get_case(case_id)
     stream = await container.event_store.load_stream(case_id)
-    events = [
-        event
-        for event in stream
-        if event.sequence > after_sequence
-    ]
+    events = [event for event in stream if event.sequence > after_sequence]
 
     async def generate() -> AsyncGenerator[str, None]:
         for event in events:

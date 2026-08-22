@@ -1,4 +1,5 @@
 """员工入职到转正 Reference Application 的长期 Case 编排。"""
+
 from __future__ import annotations
 
 import hashlib
@@ -18,8 +19,8 @@ from app.services.agent.approval_manager import ApprovalManager
 from app.services.context.compactor import ContextCompactor
 from app.services.mcp.adapter import McpApprovalBridge, McpToolAdapter
 from app.services.memory.store import EpisodicMemoryStore
-from app.services.observability.runtime_metrics import RuntimeMetrics
 from app.services.observability.context import TraceContext
+from app.services.observability.runtime_metrics import RuntimeMetrics
 from app.services.observability.span import Span, SpanStatus, SpanType
 from app.services.observability.tracer import Tracer
 from app.services.runtime.case_service import CaseService
@@ -255,26 +256,18 @@ class OnboardingCaseWorkflow:
         decision_was_persisted = persisted_decision is not None
         if persisted_decision is not None:
             if persisted_decision.payload.get("approval_id") != approval_id:
-                raise ValidationError(
-                    f"Command {command_id} is bound to another approval"
-                )
+                raise ValidationError(f"Command {command_id} is bound to another approval")
             if persisted_decision.payload.get("decision") != decision.value:
-                raise ValidationError(
-                    f"Command {command_id} is bound to another decision"
-                )
+                raise ValidationError(f"Command {command_id} is bound to another decision")
             if persisted_decision.payload.get("decided_by") != decided_by:
-                raise ValidationError(
-                    f"Command {command_id} is bound to another decision maker"
-                )
+                raise ValidationError(f"Command {command_id} is bound to another decision maker")
             raw_effective = persisted_decision.payload.get("approval")
             if not isinstance(raw_effective, dict):
                 raise ValidationError("Persisted approval decision is incomplete")
             effective = ApprovalRequest.model_validate(raw_effective)
             if decision == ApprovalDecisionType.EDIT:
                 if not edited_parameters:
-                    raise ValidationError(
-                        "edited_parameters is required when decision is edit"
-                    )
+                    raise ValidationError("edited_parameters is required when decision is edit")
                 if effective.parameters != edited_parameters:
                     raise ValidationError(
                         f"Command {command_id} is bound to other edited parameters"
@@ -283,8 +276,7 @@ class OnboardingCaseWorkflow:
         else:
             if case.version != expected_version:
                 raise ValidationError(
-                    f"Case version conflict: expected {expected_version}, "
-                    f"actual {case.version}"
+                    f"Case version conflict: expected {expected_version}, actual {case.version}"
                 )
             approval_projection = next(
                 (
@@ -295,9 +287,7 @@ class OnboardingCaseWorkflow:
                 None,
             )
             if approval_projection is None:
-                raise ValidationError(
-                    f"Approval does not belong to Case: {approval_id}"
-                )
+                raise ValidationError(f"Approval does not belong to Case: {approval_id}")
             if approval_projection.get("status") != "pending":
                 raise ValidationError(
                     f"Approval request {approval_id} is not pending "
@@ -308,9 +298,7 @@ class OnboardingCaseWorkflow:
                 effective = self._approvals.approve(approval_id, decided_by)
             elif decision == ApprovalDecisionType.EDIT:
                 if not edited_parameters:
-                    raise ValidationError(
-                        "edited_parameters is required when decision is edit"
-                    )
+                    raise ValidationError("edited_parameters is required when decision is edit")
                 effective = self._approvals.edit_and_approve(
                     approval_id,
                     edited_parameters,
@@ -410,10 +398,7 @@ class OnboardingCaseWorkflow:
                 tenant_id=case.tenant_id,
                 case_id=case.id,
                 memory_key="onboarding.ticket_created",
-                content=(
-                    "入职工单已在人工审批后创建，"
-                    "后续应按 durable timer 跟进转正。"
-                ),
+                content=("入职工单已在人工审批后创建，后续应按 durable timer 跟进转正。"),
                 provenance_event_ids=[tool_event.id],
             )
             case = await self._record(
@@ -652,7 +637,7 @@ class OnboardingCaseWorkflow:
         else:
             tool_call = await self._mcp.call(
                 run_id=run_id,
-                tool_name="create_mock_hr_ticket",
+                tool_name="create_hr_ticket",
                 parameters=parameters,
                 user_context=user_context,
                 approval_evidence=citations,
@@ -754,11 +739,7 @@ class OnboardingCaseWorkflow:
     ) -> RunEventEnvelope | None:
         events = await self._events.load_stream(case_id)
         return next(
-            (
-                event
-                for event in events
-                if event.command_id == command_id
-            ),
+            (event for event in events if event.command_id == command_id),
             None,
         )
 
@@ -770,7 +751,7 @@ class OnboardingCaseWorkflow:
         """从内存或持久事件恢复完整审批对象。"""
         try:
             return self._approvals.get_request(approval_id)
-        except NotFoundError:
+        except NotFoundError as exc:
             events = await self._events.load_stream(case_id)
             for event in reversed(events):
                 raw = event.payload.get("approval")
@@ -779,7 +760,9 @@ class OnboardingCaseWorkflow:
                 restored = ApprovalRequest.model_validate(raw)
                 if restored.id == approval_id:
                     return self._approvals.restore_request(restored)
-            raise NotFoundError(f"Approval request not found in Case events: {approval_id}")
+            raise NotFoundError(
+                f"Approval request not found in Case events: {approval_id}"
+            ) from exc
 
     @staticmethod
     def _manifest_hash(case: HRCase) -> str:
@@ -793,9 +776,7 @@ class OnboardingCaseWorkflow:
 
     @staticmethod
     def _manifest_hash_for_policy(case: HRCase, policy_version: str) -> str:
-        manifest = case.execution_manifest.model_copy(
-            update={"policy_version": policy_version}
-        )
+        manifest = case.execution_manifest.model_copy(update={"policy_version": policy_version})
         canonical = json.dumps(
             manifest.model_dump(mode="json"),
             ensure_ascii=False,

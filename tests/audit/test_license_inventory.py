@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ORIGIN_MAP_PATH = REPO_ROOT / "docs" / "audit" / "origin-map.jsonl"
 LICENSE_INVENTORY_PATH = REPO_ROOT / "docs" / "audit" / "license-inventory.md"
@@ -23,7 +22,9 @@ def test_allowed_or_isolated_records_reference_license_evidence() -> None:
 
         evidence_refs = record["evidence_refs"]
         assert isinstance(evidence_refs, list)
-        assert any(str(reference).startswith("license:") for reference in evidence_refs), record["path"]
+        assert any(str(reference).startswith("license:") for reference in evidence_refs), record[
+            "path"
+        ]
 
 
 def test_license_inventory_records_repository_license_and_decision() -> None:

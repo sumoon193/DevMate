@@ -12,19 +12,25 @@ from __future__ import annotations
 
 from app.devmate.approval import (
     ApprovalRequest,
-    CaseCommand as ApprovalCaseCommand,
     DM10Input,
 )
+from app.devmate.approval import (
+    CaseCommand as ApprovalCaseCommand,
+)
 from app.devmate.diagnostics import DM06Input
-from app.devmate.git import DM11Input, RuntimeEvent as GitRuntimeEvent
+from app.devmate.git import DM11Input
+from app.devmate.git import RuntimeEvent as GitRuntimeEvent
 from app.devmate.ingestion import (
     CIEvidence,
     CommitEvidence,
     DM05Input,
     IngestionStore,
+)
+from app.devmate.ingestion import (
     RuntimeEvent as IngestionRuntimeEvent,
 )
-from app.devmate.repair import DM08Input, RuntimeEvent as RepairRuntimeEvent
+from app.devmate.repair import DM08Input
+from app.devmate.repair import RuntimeEvent as RepairRuntimeEvent
 from app.devmate.sandbox import DM09Input, IsolatedSandbox, SandboxCommand
 
 
@@ -78,9 +84,7 @@ def test_end_to_end_repair_pipeline_webhook_to_pr() -> None:
     assert finding_rules  # 至少一个规则命中
 
     # ── 3. DM-08: 修复计划生成不可变 patch artifact ──
-    findings_tuple = tuple(
-        (f.finding_id, f.message) for f in diag_result.findings
-    )
+    findings_tuple = tuple((f.finding_id, f.message) for f in diag_result.findings)
     dm08 = DM08Input(case_id="case-1", findings=findings_tuple, base_sha="abc123")
     repair_event = RepairRuntimeEvent()
     repair_result = repair_event.execute(dm08)
@@ -179,9 +183,7 @@ def test_pipeline_rejects_undeclared_sandbox_commands() -> None:
         DM09Input(
             case_id="case-x",
             commands=(
-                SandboxCommand(
-                    command="curl", args=("http://evil.example",), declared=False
-                ),
+                SandboxCommand(command="curl", args=("http://evil.example",), declared=False),
             ),
         )
     )

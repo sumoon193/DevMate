@@ -3,6 +3,7 @@ PII 脱敏器。
 
 脱敏敏感个人信息：手机号、身份证号、邮箱、银行卡号等。
 """
+
 from __future__ import annotations
 
 import logging
@@ -59,17 +60,14 @@ class PIIRedactor:
         redacted = text
         redacted_count = 0
 
-        for pattern, pii_type, replacement in self.PII_PATTERNS:
+        for pattern, _pii_type, replacement in self.PII_PATTERNS:
             matches = re.findall(pattern, redacted)
             if matches:
                 redacted = re.sub(pattern, replacement, redacted)
                 redacted_count += len(matches)
 
         if redacted_count > 0:
-            logger.info(
-                "pii_redacted",
-                extra={"count": redacted_count, "text_length": len(text)}
-            )
+            logger.info("pii_redacted", extra={"count": redacted_count, "text_length": len(text)})
 
         return redacted
 
@@ -88,11 +86,13 @@ class PIIRedactor:
         for pattern, pii_type, _ in self.PII_PATTERNS:
             matches = re.findall(pattern, text)
             for match in matches:
-                detected.append({
-                    "type": pii_type,
-                    "value": match[:3] + "***",  # 只显示前3个字符
-                    "position": text.find(match)
-                })
+                detected.append(
+                    {
+                        "type": pii_type,
+                        "value": match[:3] + "***",  # 只显示前3个字符
+                        "position": text.find(match),
+                    }
+                )
 
         return detected
 

@@ -1,4 +1,5 @@
 """入库 worker 执行逻辑。"""
+
 from __future__ import annotations
 
 import asyncio
@@ -10,8 +11,8 @@ from app.services.chunker.hybrid import HybridChunker
 from app.services.ingestion.job import IngestionJobPayload
 from app.services.ingestion.pipeline import IngestionPipeline
 from app.services.ingestion.store import (
-    InMemoryIngestionTaskStore,
     IngestionTaskStore,
+    InMemoryIngestionTaskStore,
     RedisIngestionTaskStore,
 )
 from app.services.ingestion.task import IngestionTask
@@ -104,6 +105,7 @@ def build_pipeline(settings: Settings | None = None) -> IngestionPipeline:
 
     # 注册 Office/PDF parser（全模式共用）
     from app.services.parser.office_parser import OfficeParser
+
     registry.register(OfficeParser())
 
     if settings.app_mode == "full":

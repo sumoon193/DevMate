@@ -3,11 +3,13 @@ Agent Safety Eval。
 
 覆盖 RAG + Tool + Harness 组合后的关键安全风险。
 """
+
 from __future__ import annotations
 
 from collections import defaultdict
 from typing import Any
 
+from app.schemas.runtime import RunEventEnvelope
 from app.schemas.safety import (
     SafetyEvalCase,
     SafetyEvalReport,
@@ -16,7 +18,6 @@ from app.schemas.safety import (
     TrajectorySafetyReport,
     TrajectorySafetyViolation,
 )
-from app.schemas.runtime import RunEventEnvelope
 from app.services.security.prompt_guard import PromptGuard
 
 
@@ -115,8 +116,7 @@ class AgentSafetyEvaluator:
             if event.event_type == "evidence.retrieved":
                 hits = event.payload.get("hits", [])
                 if isinstance(hits, list) and any(
-                    isinstance(hit, dict) and hit.get("authorized") is False
-                    for hit in hits
+                    isinstance(hit, dict) and hit.get("authorized") is False for hit in hits
                 ):
                     violations.append(
                         self._trajectory_violation(

@@ -1,4 +1,5 @@
 """Context Engineering、Memory 与 Skill 治理测试。"""
+
 from __future__ import annotations
 
 import pytest
@@ -70,10 +71,9 @@ async def test_episodic_memory_enforces_tenant_acl_and_quarantines_injection() -
     assert safe.status == MemoryStatus.ACTIVE
     assert poisoned.status == MemoryStatus.QUARANTINED
     assert await store.search(tenant_id="tenant_b", query="学历证明") == []
-    assert [
-        item.id
-        for item in await store.search(tenant_id="tenant_a", query="学历证明")
-    ] == [safe.id]
+    assert [item.id for item in await store.search(tenant_id="tenant_a", query="学历证明")] == [
+        safe.id
+    ]
     await store.forget(safe.id, tenant_id="tenant_a")
     assert (await store.get(safe.id, tenant_id="tenant_a")).status == MemoryStatus.DELETED
 
@@ -89,7 +89,7 @@ def test_skill_requires_eval_gate_and_detects_tampered_content() -> None:
         version="1.0.0",
         content="先检索制度，再生成清单，写操作必须审批。",
         source_uri="repo://skills/hr_onboarding/1.0.0",
-        allowed_tools=["policy_search", "create_mock_hr_ticket"],
+        allowed_tools=["policy_search", "create_hr_ticket"],
         required_permissions=["hr.document.read"],
     )
 

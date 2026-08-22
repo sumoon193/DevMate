@@ -3,11 +3,14 @@ Markdown Parser。
 
 解析 Markdown 文档，提取标题、段落、代码块、列表和表格。
 """
+
 from __future__ import annotations
 
 import logging
 import re
 from typing import Any
+
+import anyio
 
 from app.services.parser.base import Block, BlockType, ParsedDocument
 
@@ -29,10 +32,7 @@ class MarkdownParser:
     supported_types: set[str] = {"text/markdown", "text/x-markdown"}
 
     async def parse(
-        self,
-        file_path: str,
-        document_id: str,
-        metadata: dict[str, Any]
+        self, file_path: str, document_id: str, metadata: dict[str, Any]
     ) -> ParsedDocument:
         """
         解析 Markdown 文档。
@@ -45,13 +45,9 @@ class MarkdownParser:
         Returns:
             解析后的文档结构
         """
-        logger.info(
-            "parsing_markdown",
-            extra={"file_path": file_path, "document_id": document_id}
-        )
+        logger.info("parsing_markdown", extra={"file_path": file_path, "document_id": document_id})
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        content = await anyio.Path(file_path).read_text(encoding="utf-8")
 
         # 提取标题（第一个 # 标题作为文档标题）
         title = self._extract_title(content)
@@ -79,7 +75,7 @@ class MarkdownParser:
             images=images,
             metadata=metadata,
             parser_used="markdown",
-            total_pages=total_pages
+            total_pages=total_pages,
         )
 
     def _extract_title(self, content: str) -> str:
@@ -125,15 +121,17 @@ class MarkdownParser:
 
                 heading_path = " > ".join(h[1] for h in heading_stack)
 
-                blocks.append(Block(
-                    block_id=f"block_{order_index}",
-                    block_type=BlockType.HEADING,
-                    text=heading_text,
-                    page_number=1,
-                    heading_path=heading_path,
-                    order_index=order_index,
-                    metadata={"level": level}
-                ))
+                blocks.append(
+                    Block(
+                        block_id=f"block_{order_index}",
+                        block_type=BlockType.HEADING,
+                        text=heading_text,
+                        page_number=1,
+                        heading_path=heading_path,
+                        order_index=order_index,
+                        metadata={"level": level},
+                    )
+                )
                 order_index += 1
                 i += 1
                 continue
@@ -152,19 +150,25 @@ class MarkdownParser:
                 code_text = "\n".join(code_lines)
                 heading_path = " > ".join(h[1] for h in heading_stack)
 
-                blocks.append(Block(
-                    block_id=f"block_{order_index}",
-                    block_type=BlockType.CODE,
-                    text=code_text,
-                    page_number=1,
-                    heading_path=heading_path,
-                    order_index=order_index
-                ))
+                blocks.append(
+                    Block(
+                        block_id=f"block_{order_index}",
+                        block_type=BlockType.CODE,
+                        text=code_text,
+                        page_number=1,
+                        heading_path=heading_path,
+                        order_index=order_index,
+                    )
+                )
                 order_index += 1
                 continue
 
             # 检查表格
-            if "|" in line and i + 1 < len(lines) and re.match(r"^\s*\|[-:\s|]+\|\s*$", lines[i + 1]):
+            if (
+                "|" in line
+                and i + 1 < len(lines)
+                and re.match(r"^\s*\|[-:\s|]+\|\s*$", lines[i + 1])
+            ):
                 table_lines = [line, lines[i + 1]]
                 i += 2
                 while i < len(lines) and "|" in lines[i]:
@@ -174,14 +178,16 @@ class MarkdownParser:
                 table_text = "\n".join(table_lines)
                 heading_path = " > ".join(h[1] for h in heading_stack)
 
-                blocks.append(Block(
-                    block_id=f"block_{order_index}",
-                    block_type=BlockType.TABLE,
-                    text=table_text,
-                    page_number=1,
-                    heading_path=heading_path,
-                    order_index=order_index
-                ))
+                blocks.append(
+                    Block(
+                        block_id=f"block_{order_index}",
+                        block_type=BlockType.TABLE,
+                        text=table_text,
+                        page_number=1,
+                        heading_path=heading_path,
+                        order_index=order_index,
+                    )
+                )
                 order_index += 1
                 continue
 
@@ -189,21 +195,27 @@ class MarkdownParser:
             if re.match(r"^\s*[-*+]\s+", line) or re.match(r"^\s*\d+\.\s+", line):
                 list_lines = [line]
                 i += 1
-                while i < len(lines) and (re.match(r"^\s*[-*+]\s+", lines[i]) or re.match(r"^\s*\d+\.\s+", lines[i]) or (lines[i].startswith("  ") and lines[i].strip())):
+                while i < len(lines) and (
+                    re.match(r"^\s*[-*+]\s+", lines[i])
+                    or re.match(r"^\s*\d+\.\s+", lines[i])
+                    or (lines[i].startswith("  ") and lines[i].strip())
+                ):
                     list_lines.append(lines[i])
                     i += 1
 
                 list_text = "\n".join(list_lines)
                 heading_path = " > ".join(h[1] for h in heading_stack)
 
-                blocks.append(Block(
-                    block_id=f"block_{order_index}",
-                    block_type=BlockType.LIST,
-                    text=list_text,
-                    page_number=1,
-                    heading_path=heading_path,
-                    order_index=order_index
-                ))
+                blocks.append(
+                    Block(
+                        block_id=f"block_{order_index}",
+                        block_type=BlockType.LIST,
+                        text=list_text,
+                        page_number=1,
+                        heading_path=heading_path,
+                        order_index=order_index,
+                    )
+                )
                 order_index += 1
                 continue
 
@@ -217,14 +229,16 @@ class MarkdownParser:
             paragraph_text = "\n".join(paragraph_lines)
             heading_path = " > ".join(h[1] for h in heading_stack)
 
-            blocks.append(Block(
-                block_id=f"block_{order_index}",
-                block_type=BlockType.PARAGRAPH,
-                text=paragraph_text,
-                page_number=1,
-                heading_path=heading_path,
-                order_index=order_index
-            ))
+            blocks.append(
+                Block(
+                    block_id=f"block_{order_index}",
+                    block_type=BlockType.PARAGRAPH,
+                    text=paragraph_text,
+                    page_number=1,
+                    heading_path=heading_path,
+                    order_index=order_index,
+                )
+            )
             order_index += 1
 
         return blocks

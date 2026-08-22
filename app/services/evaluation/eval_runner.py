@@ -3,12 +3,13 @@
 
 加载 Golden Dataset，逐条运行 GroundedAnswerService，汇总 RAGAS 和 Agent 指标。
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.schemas.chunk import Citation, EvidenceBundle
@@ -19,7 +20,9 @@ from app.services.evaluation.ragas_adapter import FakeRAGASMetrics, RAGASMetrics
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_GOLDEN_PATH = Path(__file__).parent.parent.parent.parent / "tests" / "fixtures" / "golden_dataset.jsonl"
+DEFAULT_GOLDEN_PATH = (
+    Path(__file__).parent.parent.parent.parent / "tests" / "fixtures" / "golden_dataset.jsonl"
+)
 
 
 class EvalRunner:
@@ -83,7 +86,7 @@ class EvalRunner:
             EvalRun（含每条 EvalResult 和汇总指标）
         """
         run_id = f"eval_{uuid.uuid4().hex[:8]}"
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
 
         eval_run = EvalRun(
             id=run_id,
@@ -95,7 +98,7 @@ class EvalRunner:
         cases = self.load_golden_dataset(dataset_path)
         if not cases:
             eval_run.status = "failed"
-            eval_run.completed_at = datetime.now(timezone.utc)
+            eval_run.completed_at = datetime.now(UTC)
             return eval_run
 
         results: list[EvalResult] = []
@@ -118,7 +121,7 @@ class EvalRunner:
             )
 
             # 计算 RAG 指标
-            rag = self._ragas.compute(
+            rag = await self._ragas.compute(
                 question=case.question,
                 answer=answer_response.answer,
                 contexts=case.contexts,
@@ -129,29 +132,31 @@ class EvalRunner:
                 if metric_name in rag_scores:
                     rag_scores[metric_name].append(value)
 
-            results.append(EvalResult(
-                case_id=case.id,
-                metrics=rag,
-            ))
+            results.append(
+                EvalResult(
+                    case_id=case.id,
+                    metrics=rag,
+                )
+            )
 
             # 构造 Agent 指标用例
-            agent_cases.append({
-                "case_id": case.id,
-                "expected_tools": case.expected_tools,
-                "actual_tools": [],  # V1 不跟踪实际工具
-                "requires_approval": case.requires_approval,
-                "approval_granted": True,
-                "expected_refusal": False,
-                "actual_refused": answer_response.refusal_reason is not None,
-                "goal_completed": answer_response.confidence > 0.3,
-            })
+            agent_cases.append(
+                {
+                    "case_id": case.id,
+                    "expected_tools": case.expected_tools,
+                    "actual_tools": [],  # V1 不跟踪实际工具
+                    "requires_approval": case.requires_approval,
+                    "approval_granted": True,
+                    "expected_refusal": False,
+                    "actual_refused": answer_response.refusal_reason is not None,
+                    "goal_completed": answer_response.confidence > 0.3,
+                }
+            )
 
         # 汇总指标
         aggregated_metrics: dict[str, float] = {}
         for metric_name, values in rag_scores.items():
-            aggregated_metrics[metric_name] = round(
-                sum(values) / len(values), 3
-            ) if values else 0.0
+            aggregated_metrics[metric_name] = round(sum(values) / len(values), 3) if values else 0.0
 
         # Agent 指标
         agent_result = compute_agent_metrics(agent_cases)
@@ -162,7 +167,7 @@ class EvalRunner:
 
         eval_run.metrics = aggregated_metrics
         eval_run.status = "completed"
-        eval_run.completed_at = datetime.now(timezone.utc)
+        eval_run.completed_at = datetime.now(UTC)
 
         logger.info(
             "eval_run_complete",
@@ -182,15 +187,21 @@ class EvalRunner:
         """
         citations: list[Citation] = []
         for idx, ctx_text in enumerate(case.contexts, start=1):
-            citations.append(Citation(
-                id=idx,
-                document_name=case.ground_truth_docs[0] if case.ground_truth_docs else "unknown",
-                section=case.ground_truth_sections[idx - 1] if idx - 1 < len(case.ground_truth_sections) else "",
-                page=0,
-                chunk_text=ctx_text,
-                score=0.8,
-                rerank_score=0.8,
-            ))
+            citations.append(
+                Citation(
+                    id=idx,
+                    document_name=case.ground_truth_docs[0]
+                    if case.ground_truth_docs
+                    else "unknown",
+                    section=case.ground_truth_sections[idx - 1]
+                    if idx - 1 < len(case.ground_truth_sections)
+                    else "",
+                    page=0,
+                    chunk_text=ctx_text,
+                    score=0.8,
+                    rerank_score=0.8,
+                )
+            )
 
         return EvidenceBundle(
             evidence_list=citations,

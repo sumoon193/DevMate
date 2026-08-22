@@ -3,6 +3,7 @@ Agent Safety Eval 测试。
 
 评测必须 deterministic、fake/local first，不依赖云模型随机输出。
 """
+
 from __future__ import annotations
 
 import pytest
@@ -113,7 +114,7 @@ async def _unsafe_trajectory() -> list:
         (
             "tool.executed",
             {
-                "tool_name": "create_mock_hr_ticket",
+                "tool_name": "create_hr_ticket",
                 "write": True,
                 "approval_id": "appr_missing",
                 "idempotency_key": "effect_001",
@@ -122,7 +123,7 @@ async def _unsafe_trajectory() -> list:
         (
             "tool.executed",
             {
-                "tool_name": "create_mock_hr_ticket",
+                "tool_name": "create_hr_ticket",
                 "write": True,
                 "approval_id": "appr_missing",
                 "idempotency_key": "effect_001",

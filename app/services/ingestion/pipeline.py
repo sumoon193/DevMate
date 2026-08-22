@@ -4,15 +4,16 @@
 串联 parse → clean → chunk → contextualize → embed → index → mark_ready。
 不依赖 Celery 或 Docker，使用已有 in-memory service。
 """
+
 from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
 from pathlib import Path
 
+import anyio
+
 from app.schemas.chunk import ChunkCreate
-from app.schemas.enums import DocumentStatus, Visibility
 from app.services.chunker.hybrid import HybridChunker
 from app.services.ingestion.identity import stable_chunk_id
 from app.services.ingestion.task import IngestionStage, IngestionTask
@@ -134,6 +135,7 @@ class IngestionPipeline:
 
         # 先写临时文件供 parser 读取
         import tempfile
+
         with tempfile.NamedTemporaryFile(
             suffix=self._mime_to_ext(task.mime_type),
             delete=False,
@@ -149,7 +151,7 @@ class IngestionPipeline:
                 metadata=doc_metadata,
             )
         finally:
-            Path(tmp_path).unlink(missing_ok=True)
+            await anyio.Path(tmp_path).unlink(missing_ok=True)
 
         task.complete_stage(IngestionStage.PARSING)
         return parsed_doc
@@ -221,11 +223,11 @@ class IngestionPipeline:
         embeddings: list[list[float]] = []
         texts = [c.full_text for c in chunks]
         for start in range(0, len(texts), self._embedding_batch_size):
-            batch = texts[start:start + self._embedding_batch_size]
+            batch = texts[start : start + self._embedding_batch_size]
             embeddings.extend(await self._embedder.embed_documents(batch))
 
         # 暂存 embedding 到 chunk metadata（后续 index 阶段使用）
-        for chunk, embedding in zip(chunks, embeddings):
+        for chunk, embedding in zip(chunks, embeddings, strict=True):
             if not chunk.acl_metadata:
                 chunk.acl_metadata = {}
             chunk.acl_metadata["_embedding"] = embedding

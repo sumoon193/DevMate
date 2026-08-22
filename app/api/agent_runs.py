@@ -5,6 +5,7 @@ Agent Run 端点。
 - full 模式：走真实 LangGraph 工作流（Milvus+ES 检索 → Qwen 生成）
 - fallback 模式：走确定性 demo 链路
 """
+
 from __future__ import annotations
 
 import logging
@@ -97,8 +98,8 @@ async def stream_agent_run(
     """SSE 事件流：查询 Run 当前状态并输出。"""
     from app.services.graph.sse import (
         SSEEventType,
-        create_sse_event,
         create_run_started_event,
+        create_sse_event,
         create_step_completed_event,
     )
 
@@ -145,7 +146,7 @@ async def _run_fallback_demo(
     plan = AgentPlan(
         id=f"plan_{run_id[-8:]}",
         run_id=run_id,
-        steps=["policy_search", "hr_checklist", "create_mock_hr_ticket"],
+        steps=["policy_search", "hr_checklist", "create_hr_ticket"],
         current_step_index=0,
     )
     await run_manager.create_plan(run_id, plan)
@@ -164,7 +165,7 @@ async def _run_fallback_demo(
     )
     await run_manager.execute_tool(
         run_id=run_id,
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         parameters=_build_ticket_parameters(query),
         user_context=user_context,
     )
@@ -181,14 +182,13 @@ async def _run_fallback_demo(
                     "系统已按审批策略自动批准并创建模拟 HR 工单。"
                 ),
                 "citations": [
-                    citation.model_dump(mode="json")
-                    for citation in evidence.evidence_list
+                    citation.model_dump(mode="json") for citation in evidence.evidence_list
                 ],
                 "confidence": evidence.query_coverage_score,
                 "plan": {
                     "id": plan.id,
                     "steps": plan.steps,
-                    "requires_approval": ["create_mock_hr_ticket"],
+                    "requires_approval": ["create_hr_ticket"],
                 },
                 "tool_result": auto_tool_call.result,
                 "approval_required": False,
@@ -208,7 +208,7 @@ async def _run_fallback_demo(
         "plan": {
             "id": plan.id,
             "steps": plan.steps,
-            "requires_approval": ["create_mock_hr_ticket"],
+            "requires_approval": ["create_hr_ticket"],
         },
         "tool_result": None,
         "approval_required": True,

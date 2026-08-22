@@ -1,7 +1,8 @@
 """长期 HRCase 与运行时治理 service 测试。"""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -23,7 +24,7 @@ def _manifest() -> ExecutionManifest:
         model_version="1",
         prompt_version="answer-v1",
         skill_versions={"hr_onboarding": "1.0.0"},
-        tool_schema_versions={"create_mock_hr_ticket": "1"},
+        tool_schema_versions={"create_hr_ticket": "1"},
         policy_version="hr-policy-2026-01",
         retrieval_version="hybrid-v1",
         context_strategy_version="context-v1",
@@ -82,7 +83,7 @@ async def test_case_message_updates_working_memory_and_rebuilds_equally() -> Non
 @pytest.mark.asyncio
 async def test_run_lease_blocks_competitor_until_fake_clock_expires() -> None:
     """未过期 lease 应阻止并发 owner，过期后允许接管。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     leases = InMemoryLeaseStore(clock=clock)
     first = await leases.acquire("case_001", "worker_a", ttl_seconds=30)
 
@@ -97,7 +98,7 @@ async def test_run_lease_blocks_competitor_until_fake_clock_expires() -> None:
 @pytest.mark.asyncio
 async def test_timer_wakes_case_after_cross_day_restart_safe_event() -> None:
     """到期 timer 应通过事件唤醒 Case，并保持 replay 一致。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     event_store = InMemoryEventStore()
     cases = CaseService(event_store=event_store)
     timers = InMemoryTimerStore(clock=clock)
@@ -114,7 +115,7 @@ async def test_timer_wakes_case_after_cross_day_restart_safe_event() -> None:
     scheduled = await coordinator.schedule(
         case_id=case.id,
         timer_type="probation.review_due",
-        due_at=datetime(2026, 7, 14, tzinfo=timezone.utc),
+        due_at=datetime(2026, 7, 14, tzinfo=UTC),
         payload={"employee_id": "user_employee"},
         actor_id="user_hr",
         command_id="cmd_schedule_review",

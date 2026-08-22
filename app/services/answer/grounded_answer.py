@@ -4,6 +4,7 @@ Grounded Answer Service。
 核心服务：基于 evidence 生成可信回答。
 协调 CitationBuilder、LowConfidenceHandler、FactChecker 和 AnswerGenerator。
 """
+
 from __future__ import annotations
 
 import logging
@@ -11,8 +12,8 @@ import uuid
 from typing import Protocol
 
 from app.prompts.answer_prompt import ANSWER_PROMPT_V1, REFUSAL_PROMPT_V1
-from app.schemas.chunk import EvidenceBundle
 from app.schemas.chat import AnswerResponse
+from app.schemas.chunk import EvidenceBundle
 from app.schemas.tool import ToolCall
 from app.services.answer.citation_builder import CitationBuilder
 from app.services.answer.fact_checker import FactChecker
@@ -65,17 +66,17 @@ class FakeAnswerGenerator:
             基于证据拼接的确定性答案
         """
         # 从 prompt 中提取证据文本行
-        lines = prompt.split('\n')
+        lines = prompt.split("\n")
         evidence_lines: list[str] = []
         in_evidence = False
 
         for line in lines:
-            if line.strip() == '## 证据':
+            if line.strip() == "## 证据":
                 in_evidence = True
                 continue
-            if line.strip().startswith('## ') and in_evidence:
+            if line.strip().startswith("## ") and in_evidence:
                 break
-            if in_evidence and line.strip() and line.strip() != '（无可用证据）':
+            if in_evidence and line.strip() and line.strip() != "（无可用证据）":
                 evidence_lines.append(line.strip())
 
         if evidence_lines:
@@ -83,16 +84,16 @@ class FakeAnswerGenerator:
             answer_parts: list[str] = ["根据公司制度，相关信息如下：\n"]
             for i, line in enumerate(evidence_lines, start=1):
                 # 提取编号后的实际内容
-                if line.startswith('['):
-                    bracket_end = line.find(']')
+                if line.startswith("["):
+                    bracket_end = line.find("]")
                     if bracket_end != -1:
-                        content = line[bracket_end + 1:].strip()
+                        content = line[bracket_end + 1 :].strip()
                         answer_parts.append(f"[{i}] {content}")
                     else:
                         answer_parts.append(line)
                 else:
                     answer_parts.append(f"[{i}] {line}")
-            return '\n'.join(answer_parts)
+            return "\n".join(answer_parts)
 
         return "根据现有资料，无法找到相关信息回答您的问题。建议联系 HR 部门获取帮助。"
 
@@ -161,7 +162,9 @@ class GroundedAnswerService:
             )
 
         if verdict.action == LowConfidenceAction.RECOMMEND_HUMAN:
-            logger.info("answer_recommend_human", extra={"reason": verdict.reason, "trace_id": trace_id})
+            logger.info(
+                "answer_recommend_human", extra={"reason": verdict.reason, "trace_id": trace_id}
+            )
             return AnswerResponse(
                 answer=f"该问题的证据质量较低，建议直接联系 HR 部门获取准确信息。\n\n原因：{verdict.reason}",
                 citations=[],
@@ -203,7 +206,9 @@ class GroundedAnswerService:
 
         # Step 5：事实核查
         fact_result = self._fact_checker.check(answer_text, citations)
-        final_confidence = verdict.confidence if fact_result.is_supported else verdict.confidence * 0.5
+        final_confidence = (
+            verdict.confidence if fact_result.is_supported else verdict.confidence * 0.5
+        )
 
         if not fact_result.is_supported and fact_result.support_ratio < 0.3:
             logger.warning(

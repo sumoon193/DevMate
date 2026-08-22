@@ -3,6 +3,7 @@ In-Memory Vector Store。
 
 使用纯 Python list 实现向量存储和余弦相似度检索。
 """
+
 from __future__ import annotations
 
 import logging
@@ -28,11 +29,7 @@ class InMemoryVectorStore:
         self._embeddings: list[list[float]] = []
         self._chunk_ids: list[str] = []  # 用于删除
 
-    async def add_chunks(
-        self,
-        chunks: list[ChunkCreate],
-        embeddings: list[list[float]]
-    ) -> None:
+    async def add_chunks(self, chunks: list[ChunkCreate], embeddings: list[list[float]]) -> None:
         """
         添加 chunks 到向量存储。
 
@@ -43,12 +40,9 @@ class InMemoryVectorStore:
         if len(chunks) != len(embeddings):
             raise ValueError("chunks and embeddings must have the same length")
 
-        logger.info(
-            "adding_chunks_to_vector_store",
-            extra={"count": len(chunks)}
-        )
+        logger.info("adding_chunks_to_vector_store", extra={"count": len(chunks)})
 
-        for ordinal, (chunk, embedding) in enumerate(zip(chunks, embeddings), start=1):
+        for ordinal, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True), start=1):
             stored_chunk = chunk
             if not chunk.id:
                 stored_chunk = chunk.model_copy(
@@ -67,10 +61,7 @@ class InMemoryVectorStore:
             self._chunk_ids.append(stored_chunk.document_id)
 
     async def search(
-        self,
-        query_embedding: list[float],
-        acl_filter: ACLFilter,
-        top_k: int = 10
+        self, query_embedding: list[float], acl_filter: ACLFilter, top_k: int = 10
     ) -> list[RetrievalResult]:
         """
         向量检索。
@@ -83,15 +74,12 @@ class InMemoryVectorStore:
         Returns:
             检索结果列表（按相似度降序）
         """
-        logger.info(
-            "vector_search",
-            extra={"top_k": top_k, "total_chunks": len(self._chunks)}
-        )
+        logger.info("vector_search", extra={"top_k": top_k, "total_chunks": len(self._chunks)})
 
         # 计算所有 chunk 的相似度
         scored_chunks: list[tuple[float, ChunkCreate]] = []
 
-        for i, (chunk, embedding) in enumerate(zip(self._chunks, self._embeddings)):
+        for chunk, embedding in zip(self._chunks, self._embeddings, strict=True):
             # ACL 过滤
             if not self._check_acl(chunk, acl_filter):
                 continue
@@ -128,14 +116,11 @@ class InMemoryVectorStore:
                 heading_path=chunk.heading_path,
                 tenant_id=chunk.tenant_id,
                 department_id=chunk.department_id,
-                visibility=chunk.visibility
+                visibility=chunk.visibility,
             )
             results.append(result)
 
-        logger.info(
-            "vector_search_complete",
-            extra={"returned": len(results)}
-        )
+        logger.info("vector_search_complete", extra={"returned": len(results)})
 
         return results
 
@@ -146,16 +131,10 @@ class InMemoryVectorStore:
         Args:
             document_id: 文档 ID
         """
-        logger.info(
-            "deleting_chunks_by_document",
-            extra={"document_id": document_id}
-        )
+        logger.info("deleting_chunks_by_document", extra={"document_id": document_id})
 
         # 找到需要删除的索引
-        indices_to_remove = [
-            i for i, cid in enumerate(self._chunk_ids)
-            if cid == document_id
-        ]
+        indices_to_remove = [i for i, cid in enumerate(self._chunk_ids) if cid == document_id]
 
         # 从后往前删除（避免索引偏移）
         for i in reversed(indices_to_remove):
@@ -164,8 +143,7 @@ class InMemoryVectorStore:
             del self._chunk_ids[i]
 
         logger.info(
-            "deleted_chunks",
-            extra={"document_id": document_id, "count": len(indices_to_remove)}
+            "deleted_chunks", extra={"document_id": document_id, "count": len(indices_to_remove)}
         )
 
     def _check_acl(self, chunk: ChunkCreate, acl_filter: ACLFilter) -> bool:
@@ -211,7 +189,7 @@ class InMemoryVectorStore:
         if len(vec_a) != len(vec_b):
             raise ValueError("Vectors must have the same length")
 
-        dot_product = sum(a * b for a, b in zip(vec_a, vec_b))
+        dot_product = sum(a * b for a, b in zip(vec_a, vec_b, strict=True))
         norm_a = sum(a * a for a in vec_a) ** 0.5
         norm_b = sum(b * b for b in vec_b) ** 0.5
 

@@ -7,12 +7,15 @@ settings 驱动选择后端：
   PostgreSQL，使 waiting_approval 的跨天长流程在进程重启后仍可 resume。
   连接池的打开/关闭挂在 FastAPI lifespan 上（见 app/main.py）。
 """
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
+
+from app.core.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -95,9 +98,10 @@ def create_checkpointer_manager(settings: object) -> GraphCheckpointerManager:
             依赖，或在无事件循环的同步上下文中构建 postgres checkpointer。
     """
     backend = getattr(settings, "graph_checkpointer_backend", "memory")
-    conn_string = (
-        getattr(settings, "graph_checkpointer_postgres_url", "")
-        or getattr(settings, "postgres_url", "")
+    if getattr(settings, "app_mode", "fallback") == "full" and backend != "postgres":
+        raise ValidationError("APP_MODE=full requires graph_checkpointer_backend=postgres")
+    conn_string = getattr(settings, "graph_checkpointer_postgres_url", "") or getattr(
+        settings, "postgres_url", ""
     )
 
     if backend == "postgres" and conn_string:

@@ -1,9 +1,10 @@
 """不可变 DocumentVersion registry 的 deterministic fallback。"""
+
 from __future__ import annotations
 
 import hashlib
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 
 from sqlalchemy import select, update
@@ -50,7 +51,7 @@ class InMemoryDocumentVersionRegistry:
             content_hash=content_hash,
             is_active=True,
             supersedes_version_id=superseded_id,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
         self._versions[version.id] = version
         version_ids.append(version.id)
@@ -82,47 +83,46 @@ class SqlAlchemyDocumentVersionRegistry:
     async def register(self, *, document_id: str, content: bytes) -> DocumentVersion:
         """幂等注册内容，并在事务内切换同文档 active version。"""
         content_hash = hashlib.sha256(content).hexdigest()
-        async with self._sessions() as session:
-            async with session.begin():
-                existing = await session.scalar(
-                    select(DocumentVersionRecord).where(
-                        DocumentVersionRecord.document_id == document_id,
-                        DocumentVersionRecord.content_hash == content_hash,
+        async with self._sessions() as session, session.begin():
+            existing = await session.scalar(
+                select(DocumentVersionRecord).where(
+                    DocumentVersionRecord.document_id == document_id,
+                    DocumentVersionRecord.content_hash == content_hash,
+                )
+            )
+            if existing is not None:
+                if not existing.is_active:
+                    await session.execute(
+                        update(DocumentVersionRecord)
+                        .where(DocumentVersionRecord.document_id == document_id)
+                        .values(is_active=False)
                     )
-                )
-                if existing is not None:
-                    if not existing.is_active:
-                        await session.execute(
-                            update(DocumentVersionRecord)
-                            .where(DocumentVersionRecord.document_id == document_id)
-                            .values(is_active=False)
-                        )
-                        existing.is_active = True
-                    return self._from_record(existing)
+                    existing.is_active = True
+                return self._from_record(existing)
 
-                versions = list(
-                    (
-                        await session.scalars(
-                            select(DocumentVersionRecord)
-                            .where(DocumentVersionRecord.document_id == document_id)
-                            .order_by(DocumentVersionRecord.version)
-                            .with_for_update()
-                        )
-                    ).all()
-                )
-                for version in versions:
-                    version.is_active = False
-                record = DocumentVersionRecord(
-                    id=f"docver_{uuid.uuid4().hex[:12]}",
-                    document_id=document_id,
-                    version=len(versions) + 1,
-                    content_hash=content_hash,
-                    is_active=True,
-                    supersedes_version_id=versions[-1].id if versions else None,
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
-                )
-                session.add(record)
+            versions = list(
+                (
+                    await session.scalars(
+                        select(DocumentVersionRecord)
+                        .where(DocumentVersionRecord.document_id == document_id)
+                        .order_by(DocumentVersionRecord.version)
+                        .with_for_update()
+                    )
+                ).all()
+            )
+            for version in versions:
+                version.is_active = False
+            record = DocumentVersionRecord(
+                id=f"docver_{uuid.uuid4().hex[:12]}",
+                document_id=document_id,
+                version=len(versions) + 1,
+                content_hash=content_hash,
+                is_active=True,
+                supersedes_version_id=versions[-1].id if versions else None,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+            session.add(record)
         return self._from_record(record)
 
     async def get(self, version_id: str) -> DocumentVersion:
@@ -148,7 +148,7 @@ class SqlAlchemyDocumentVersionRegistry:
     def _from_record(record: DocumentVersionRecord) -> DocumentVersion:
         created_at = record.created_at
         if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=timezone.utc)
+            created_at = created_at.replace(tzinfo=UTC)
         return DocumentVersion(
             id=record.id,
             document_id=record.document_id,

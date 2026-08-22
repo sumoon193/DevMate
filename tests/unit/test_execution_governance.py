@@ -1,7 +1,8 @@
 """审批、副作用账本与持久化定时器治理测试。"""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -30,7 +31,7 @@ def _tool_call() -> ToolCall:
     return ToolCall(
         id="tool_001",
         run_id="run_001",
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         parameters={"title": "创建入职工单"},
         approval_required=True,
     )
@@ -38,12 +39,12 @@ def _tool_call() -> ToolCall:
 
 def test_approval_expires_and_rejects_late_decision() -> None:
     """超过有效期的审批不能再批准。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     manager = ApprovalManager(StepLogger(), clock=clock, default_ttl_seconds=60)
     request = manager.create_request(
         run_id="run_001",
         tool_call=_tool_call(),
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         parameters={"title": "创建入职工单"},
         risk_level=ToolRiskLevel.WRITE,
         user_context=_user(),
@@ -64,7 +65,7 @@ def test_approval_subject_hash_detects_parameter_drift() -> None:
     request = manager.create_request(
         run_id="run_001",
         tool_call=_tool_call(),
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         parameters={"title": "创建入职工单"},
         risk_level=ToolRiskLevel.WRITE,
         user_context=_user(),
@@ -77,7 +78,7 @@ def test_approval_subject_hash_detects_parameter_drift() -> None:
     with pytest.raises(ValidationError, match="subject hash"):
         manager.validate_for_execution(
             request.id,
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters={"title": "被修改的工单"},
             evidence=[{"chunk_id": "chunk_v1", "document_version": "v1"}],
             policy_version="hr-policy-v1",
@@ -107,14 +108,14 @@ async def test_side_effect_ledger_returns_cached_success_for_duplicate_key() -> 
     ledger = InMemorySideEffectLedger()
     reserved = await ledger.reserve(
         idempotency_key="effect_case_001_ticket",
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         subject_hash="subject-v1",
     )
     await ledger.mark_succeeded(reserved.id, {"ticket_id": "HR-001"})
 
     replayed = await ledger.reserve(
         idempotency_key="effect_case_001_ticket",
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         subject_hash="subject-v1",
     )
 
@@ -126,12 +127,12 @@ async def test_side_effect_ledger_returns_cached_success_for_duplicate_key() -> 
 @pytest.mark.asyncio
 async def test_due_timer_can_only_be_claimed_once() -> None:
     """两个 scheduler 竞争时只有一个能 claim 到期 timer。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     timers = InMemoryTimerStore(clock=clock)
     timer = await timers.schedule(
         case_id="case_001",
         timer_type="probation.review_due",
-        due_at=datetime(2026, 7, 14, tzinfo=timezone.utc),
+        due_at=datetime(2026, 7, 14, tzinfo=UTC),
         payload={"employee_id": "user_employee"},
         idempotency_key="case_001:probation-review",
     )

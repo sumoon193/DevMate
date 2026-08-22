@@ -1,8 +1,9 @@
 """只读 HR Policy Research A2A peer 与 in-process client。"""
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.core.exceptions import PermissionError, ValidationError
 from app.schemas.protocol import A2AMessage, AgentCard, ArtifactRef, ProtocolTask
@@ -61,7 +62,7 @@ class PolicyResearchA2AAgent:
         if any(marker in lowered for marker in self._WRITE_MARKERS):
             raise ValidationError("Policy Research Agent is read-only")
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         citations = [
             {
                 "document_id": "doc_hr_onboarding",

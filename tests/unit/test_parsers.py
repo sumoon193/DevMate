@@ -5,6 +5,7 @@ Parser 测试。
 1. test_markdown_parser_preserves_heading_path
 2. test_parser_registry_routes_by_mime_type
 """
+
 from __future__ import annotations
 
 import os
@@ -48,9 +49,7 @@ class TestMarkdownParser:
         parser = MarkdownParser()
 
         doc = await parser.parse(
-            file_path=sample_md_path,
-            document_id="doc_001",
-            metadata={"tenant_id": "tenant_hr"}
+            file_path=sample_md_path, document_id="doc_001", metadata={"tenant_id": "tenant_hr"}
         )
 
         # 验证文档解析成功
@@ -82,11 +81,7 @@ class TestMarkdownParser:
         """测试 Markdown parser 提取表格。"""
         parser = MarkdownParser()
 
-        doc = await parser.parse(
-            file_path=sample_md_path,
-            document_id="doc_001",
-            metadata={}
-        )
+        doc = await parser.parse(file_path=sample_md_path, document_id="doc_001", metadata={})
 
         # 验证表格被正确提取
         assert len(doc.tables) >= 1
@@ -100,11 +95,7 @@ class TestMarkdownParser:
         """测试 Markdown parser 提取代码块。"""
         parser = MarkdownParser()
 
-        doc = await parser.parse(
-            file_path=sample_md_path,
-            document_id="doc_001",
-            metadata={}
-        )
+        doc = await parser.parse(file_path=sample_md_path, document_id="doc_001", metadata={})
 
         # 验证代码块被正确提取
         code_blocks = [b for b in doc.blocks if b.block_type == BlockType.CODE]
@@ -116,11 +107,7 @@ class TestMarkdownParser:
         """测试 Markdown parser 提取列表。"""
         parser = MarkdownParser()
 
-        doc = await parser.parse(
-            file_path=sample_md_path,
-            document_id="doc_001",
-            metadata={}
-        )
+        doc = await parser.parse(file_path=sample_md_path, document_id="doc_001", metadata={})
 
         # 验证列表被正确提取
         list_blocks = [b for b in doc.blocks if b.block_type == BlockType.LIST]
@@ -135,7 +122,7 @@ class TestMarkdownParser:
         doc2 = await parser.parse(sample_md_path, "doc_001", {})
 
         assert len(doc1.blocks) == len(doc2.blocks)
-        for b1, b2 in zip(doc1.blocks, doc2.blocks):
+        for b1, b2 in zip(doc1.blocks, doc2.blocks, strict=True):
             assert b1.text == b2.text
             assert b1.heading_path == b2.heading_path
 
@@ -149,9 +136,7 @@ class TestPlainTextParser:
         parser = PlainTextParser()
 
         doc = await parser.parse(
-            file_path=sample_txt_path,
-            document_id="doc_002",
-            metadata={"tenant_id": "tenant_hr"}
+            file_path=sample_txt_path, document_id="doc_002", metadata={"tenant_id": "tenant_hr"}
         )
 
         assert doc.document_id == "doc_002"
@@ -174,7 +159,7 @@ class TestPlainTextParser:
         doc2 = await parser.parse(sample_txt_path, "doc_002", {})
 
         assert len(doc1.blocks) == len(doc2.blocks)
-        for b1, b2 in zip(doc1.blocks, doc2.blocks):
+        for b1, b2 in zip(doc1.blocks, doc2.blocks, strict=True):
             assert b1.text == b2.text
 
 
@@ -191,7 +176,9 @@ class TestParserRegistry:
         txt_parser = parser_registry.get_parser("text/plain")
         assert isinstance(txt_parser, PlainTextParser)
 
-    def test_parser_registry_raises_not_found_for_unknown_type(self, parser_registry: ParserRegistry):
+    def test_parser_registry_raises_not_found_for_unknown_type(
+        self, parser_registry: ParserRegistry
+    ):
         """测试 Registry 对未知 MIME 类型抛出 NotFoundError。"""
         with pytest.raises(NotFoundError):
             parser_registry.get_parser("application/pdf")

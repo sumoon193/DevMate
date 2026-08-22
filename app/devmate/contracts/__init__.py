@@ -8,12 +8,13 @@ from app.devmate.contracts.ports import (
     EventStreamPort,
 )
 from app.devmate.contracts.state import (
+    LEGAL_TRANSITIONS,
     CaseStatus,
     IllegalTransitionError,
-    LEGAL_TRANSITIONS,
 )
 
 __all__ = [
+    "LEGAL_TRANSITIONS",
     "CaseRecord",
     "CaseStatus",
     "CaseStorePort",
@@ -22,6 +23,5 @@ __all__ = [
     "DM02Result",
     "EventStreamPort",
     "IllegalTransitionError",
-    "LEGAL_TRANSITIONS",
     "RuntimeEvent",
 ]

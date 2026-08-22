@@ -1,4 +1,5 @@
 """Context Engineering 与长期记忆 Schema。"""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -35,7 +36,11 @@ class EpisodicMemoryRecord(BaseModel):
     case_id: str
     memory_key: str
     content: str
+    content_hash: str
     provenance_event_ids: list[str] = Field(min_length=1)
+    importance_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    access_count: int = Field(default=0, ge=0)
+    last_accessed_at: datetime | None = None
     status: MemoryStatus = MemoryStatus.ACTIVE
     poisoning_reason: str | None = None
     created_at: datetime

@@ -140,7 +140,7 @@ def create_devmate_router(store: CaseStore) -> APIRouter:
         response: Response,
         x_request_id: str | None = Header(default=None),
     ) -> TimelineResponse:
-        request_id = _request_id(x_request_id, response)
+        _request_id(x_request_id, response)
         return TimelineResponse(
             case_id=case_id,
             events=[

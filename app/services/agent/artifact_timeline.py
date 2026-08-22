@@ -3,10 +3,10 @@ Agent Run Artifact Timeline。
 
 Timeline 从 steps、tool calls、approvals 和 result 派生，只用于复盘视图。
 """
+
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
 from app.schemas.agent import AgentRunResponse, AgentStep

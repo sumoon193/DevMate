@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ORIGIN_MAP_PATH = REPO_ROOT / "docs" / "audit" / "origin-map.jsonl"
 
@@ -30,7 +29,7 @@ def test_origin_map_records_have_required_fields_and_valid_enums() -> None:
 
     assert records, "origin map must contain at least one audit record"
     for record in records:
-        assert REQUIRED_FIELDS <= record.keys()
+        assert record.keys() >= REQUIRED_FIELDS
         assert record["domain"] in ALLOWED_DOMAINS
         assert record["reuse_decision"] in ALLOWED_REUSE_DECISIONS
         assert str(record["path"]).strip()

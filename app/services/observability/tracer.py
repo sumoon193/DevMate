@@ -3,6 +3,7 @@ Trace 管理器。
 
 管理 Trace 的创建、Span 的生命周期和导出。
 """
+
 from __future__ import annotations
 
 import logging
@@ -74,12 +75,7 @@ class Tracer:
         self._contexts[trace_id] = context
 
         logger.info(
-            "trace_started",
-            extra={
-                "trace_id": trace_id,
-                "run_id": run_id,
-                "user_id": user_id
-            }
+            "trace_started", extra={"trace_id": trace_id, "run_id": run_id, "user_id": user_id}
         )
 
         return context
@@ -90,7 +86,7 @@ class Tracer:
         span_type: SpanType,
         name: str,
         parent: Span | None = None,
-        attributes: dict[str, Any] | None = None
+        attributes: dict[str, Any] | None = None,
     ) -> Span:
         """
         开始一个新的 Span。
@@ -126,7 +122,7 @@ class Tracer:
             span_type=span_type,
             name=name,
             parent_id=parent.span_id if parent else None,
-            attributes=default_attrs
+            attributes=default_attrs,
         )
 
         context.add_span(span)
@@ -137,17 +133,13 @@ class Tracer:
                 "trace_id": context.trace_id,
                 "span_id": span_id,
                 "span_type": span_type.value,
-                "name": name
-            }
+                "span_name": name,
+            },
         )
 
         return span
 
-    def end_span(
-        self,
-        span: Span,
-        status: SpanStatus = SpanStatus.OK
-    ) -> None:
+    def end_span(self, span: Span, status: SpanStatus = SpanStatus.OK) -> None:
         """
         结束一个 Span。
 
@@ -164,8 +156,8 @@ class Tracer:
                 "trace_id": span.trace_id,
                 "span_id": span.span_id,
                 "status": status.value,
-                "duration_ms": span.duration_ms
-            }
+                "duration_ms": span.duration_ms,
+            },
         )
 
     def record_error(self, span: Span, error: Exception) -> None:
@@ -184,8 +176,8 @@ class Tracer:
                 "trace_id": span.trace_id,
                 "span_id": span.span_id,
                 "error_type": type(error).__name__,
-                "error_message": str(error)
-            }
+                "error_message": str(error),
+            },
         )
 
     def get_context(self, trace_id: str) -> TraceContext | None:
@@ -207,10 +199,7 @@ class Tracer:
             try:
                 self._exporter.export(context.spans, context)
             except Exception as e:
-                logger.error(
-                    "trace_export_failed",
-                    extra={"trace_id": trace_id, "error": str(e)}
-                )
+                logger.error("trace_export_failed", extra={"trace_id": trace_id, "error": str(e)})
 
     def get_all_traces(self) -> list[TraceContext]:
         """获取所有 Trace 上下文。"""

@@ -1,7 +1,8 @@
 """Celery 文档入库调度测试。"""
+
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -35,10 +36,12 @@ def _content() -> bytes:
         "新员工入职当天需提交身份证明、学历证明、离职证明，并签署劳动合同。\n\n"
         "## 转正流程\n\n"
         "试用期满前五个工作日，员工提交转正申请，主管完成评估，HR 归档。"
-    ).encode("utf-8")
+    ).encode()
 
 
-def _pipeline_factory(vector_store: InMemoryVectorStore | None = None) -> Callable[[], IngestionPipeline]:
+def _pipeline_factory(
+    vector_store: InMemoryVectorStore | None = None,
+) -> Callable[[], IngestionPipeline]:
     def build() -> IngestionPipeline:
         registry = ParserRegistry()
         registry.register(MarkdownParser())
@@ -189,8 +192,7 @@ def test_stage_parse_records_single_completed_parse_stage(
     result = celery_tasks.stage_parse(payload)
     updated_task = IngestionTask.model_validate(result["task"])
     parse_records = [
-        record for record in updated_task.stages
-        if record.stage == IngestionStage.PARSING
+        record for record in updated_task.stages if record.stage == IngestionStage.PARSING
     ]
 
     assert len(parse_records) == 1
@@ -304,6 +306,89 @@ def test_save_task_state_updates_postgres_snapshot_in_full_mode(
             },
         )
     ]
+
+
+def test_save_task_state_initializes_worker_database_before_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fresh Celery worker must initialize its own database session factory."""
+    from app import config as config_module
+    from app.db import crud as db_module
+    from app.db import session as session_module
+    from app.services.ingestion import celery_tasks
+    from app.services.ingestion import worker as worker_module
+
+    initialized: list[bool] = []
+    db_updates: list[tuple[str, dict[str, Any]]] = []
+
+    class FakeStore:
+        def save(self, _task: IngestionTask) -> None:
+            return None
+
+    class FakeSessionContext:
+        async def __aenter__(self) -> object:
+            return object()
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    class FakeSessionFactory:
+        def __call__(self) -> FakeSessionContext:
+            return FakeSessionContext()
+
+    factory_attempts = 0
+
+    def get_factory_after_initialization() -> FakeSessionFactory:
+        nonlocal factory_attempts
+        factory_attempts += 1
+        if factory_attempts == 1:
+            raise RuntimeError("database is not initialized")
+        return FakeSessionFactory()
+
+    async def fake_init_db() -> None:
+        initialized.append(True)
+
+    async def fake_update_ingestion_task(
+        _session: object,
+        task_id: str,
+        **values: Any,
+    ) -> None:
+        db_updates.append((task_id, values))
+
+    task = _task("doc_worker_database_init_001")
+    task.start_stage(IngestionStage.READY)
+    task.complete_stage(IngestionStage.READY, chunk_count=1)
+
+    monkeypatch.setattr(worker_module, "build_task_store", lambda *_args, **_kwargs: FakeStore())
+    monkeypatch.setattr(config_module, "get_settings", lambda: SimpleNamespace(app_mode="full"))
+    monkeypatch.setattr(session_module, "get_session_factory", get_factory_after_initialization)
+    monkeypatch.setattr(session_module, "init_db", fake_init_db)
+    monkeypatch.setattr(db_module, "update_ingestion_task", fake_update_ingestion_task)
+
+    celery_tasks._save_task_state(task.id, task.model_dump(mode="json"))
+
+    assert initialized == [True]
+    assert len(db_updates) == 1
+
+
+def test_worker_async_runner_reuses_one_event_loop_per_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Persistent async resources must not cross a closed asyncio.run loop."""
+    import asyncio
+
+    from app.services.ingestion import celery_tasks
+
+    monkeypatch.setattr(celery_tasks, "_worker_loop", None, raising=False)
+    monkeypatch.setattr(celery_tasks, "_worker_loop_pid", None, raising=False)
+
+    async def current_loop() -> asyncio.AbstractEventLoop:
+        return asyncio.get_running_loop()
+
+    first = celery_tasks._run_async(current_loop())
+    second = celery_tasks._run_async(current_loop())
+
+    assert first is second
 
 
 @pytest.mark.asyncio

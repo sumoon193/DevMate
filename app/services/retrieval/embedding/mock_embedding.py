@@ -3,6 +3,7 @@ Mock Embedding。
 
 使用基于 hash 的确定性随机向量，便于测试和本地开发。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -30,10 +31,7 @@ class MockEmbedder:
             dimension: 向量维度，默认 128
         """
         self.dimension = dimension
-        logger.info(
-            "mock_embedder_initialized",
-            extra={"dimension": dimension}
-        )
+        logger.info("mock_embedder_initialized", extra={"dimension": dimension})
 
     async def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """
@@ -45,17 +43,11 @@ class MockEmbedder:
         Returns:
             向量列表
         """
-        logger.debug(
-            "embedding_documents",
-            extra={"count": len(texts)}
-        )
+        logger.debug("embedding_documents", extra={"count": len(texts)})
 
         embeddings = [self._text_to_vector(text) for text in texts]
 
-        logger.debug(
-            "embedding_documents_complete",
-            extra={"count": len(embeddings)}
-        )
+        logger.debug("embedding_documents_complete", extra={"count": len(embeddings)})
 
         return embeddings
 
@@ -69,10 +61,7 @@ class MockEmbedder:
         Returns:
             查询向量
         """
-        logger.debug(
-            "embedding_query",
-            extra={"query_length": len(query)}
-        )
+        logger.debug("embedding_query", extra={"query_length": len(query)})
 
         return self._text_to_vector(query)
 
@@ -93,7 +82,7 @@ class MockEmbedder:
         seed = int(hash_hex[:8], 16)  # 取前 8 个 hex 字符作为种子
 
         # 使用确定性随机数生成器
-        rng = random.Random(seed)
+        rng = random.Random(seed)  # noqa: S311 - deterministic offline test vector
 
         # 生成随机向量
         vector = [rng.gauss(0, 1) for _ in range(self.dimension)]

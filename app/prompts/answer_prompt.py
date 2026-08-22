@@ -3,11 +3,13 @@
 
 模块 08 — 使用 Jinja2 模板，不硬编码 Prompt。
 """
+
 from __future__ import annotations
 
 from jinja2 import BaseLoader, Environment
 
-_env = Environment(loader=BaseLoader())
+# 这里渲染的是纯文本 LLM prompt，不是 HTML；HTML 转义会改变证据原文。
+_env = Environment(loader=BaseLoader(), autoescape=False)  # noqa: S701
 
 ANSWER_PROMPT_V1 = _env.from_string("""你是一个企业知识库问答助手。请严格根据以下证据回答用户问题。
 

@@ -72,9 +72,7 @@ def _finding(
     source: str,
     line: int,
 ) -> DiagnosticFinding:
-    digest = hashlib.sha256(
-        f"{rule}:{source}:{line}:{message}".encode("utf-8")
-    ).hexdigest()[:8]
+    digest = hashlib.sha256(f"{rule}:{source}:{line}:{message}".encode()).hexdigest()[:8]
     return DiagnosticFinding(
         finding_id=f"{rule}-{digest}",
         severity=severity,

@@ -1,14 +1,15 @@
 """
 健康检查端点。
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
 
-from app.config import get_settings
 from app.api.schemas import HealthResponse
+from app.config import get_settings
 from app.core.health import check_infrastructure_health
 
 router = APIRouter(tags=["health"])
@@ -20,7 +21,7 @@ async def health_check() -> HealthResponse:
     return HealthResponse(
         status="ok",
         version="0.1.0",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         mode=settings.app_mode,
         services=check_infrastructure_health(settings),
     )

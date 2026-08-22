@@ -1,15 +1,16 @@
 """Agent Runtime、长期 Case、Memory 与 Skill ORM 模型。"""
+
 from __future__ import annotations
 
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Float,
     ForeignKey,
     Integer,
-    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -153,15 +154,11 @@ class DocumentVersionRecord(Base, IDMixin, TimestampMixin):
         UniqueConstraint("document_id", "content_hash", name="uq_document_content_hash"),
     )
 
-    document_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("documents.id"), index=True
-    )
+    document_id: Mapped[str] = mapped_column(String(64), ForeignKey("documents.id"), index=True)
     version: Mapped[int] = mapped_column(Integer)
     content_hash: Mapped[str] = mapped_column(String(64))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
-    supersedes_version_id: Mapped[str | None] = mapped_column(
-        String(64), nullable=True
-    )
+    supersedes_version_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class ContextSnapshotRecord(Base, IDMixin, TimestampMixin):
@@ -191,19 +188,37 @@ class EpisodicMemoryRecordORM(Base, IDMixin, TimestampMixin):
     case_id: Mapped[str] = mapped_column(String(64), ForeignKey("cases.id"), index=True)
     memory_key: Mapped[str] = mapped_column(String(255), index=True)
     content: Mapped[str] = mapped_column(Text)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
     provenance_event_ids: Mapped[list] = mapped_column(JSON, default=list)
+    importance_score: Mapped[float] = mapped_column(Float, default=0.5)
+    access_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_accessed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(32), index=True)
     poisoning_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class HrTicketRecord(Base, IDMixin, TimestampMixin):
+    """Reference Application 内部 HR 工单，供生产 MCP 写工具持久化。"""
+
+    __tablename__ = "hr_tickets"
+
+    tenant_id: Mapped[str] = mapped_column(String(64), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default="")
+    priority: Mapped[str] = mapped_column(String(32), default="medium")
+    category: Mapped[str] = mapped_column(String(64), default="其他")
+    status: Mapped[str] = mapped_column(String(32), default="created", index=True)
+    created_by: Mapped[str] = mapped_column(String(64), index=True)
 
 
 class SkillManifestRecord(Base, IDMixin, TimestampMixin):
     """Skill 供应链和生命周期记录。"""
 
     __tablename__ = "skill_manifests"
-    __table_args__ = (
-        UniqueConstraint("name", "version", name="uq_skill_name_version"),
-    )
+    __table_args__ = (UniqueConstraint("name", "version", name="uq_skill_name_version"),)
 
     name: Mapped[str] = mapped_column(String(128), index=True)
     version: Mapped[str] = mapped_column(String(64))

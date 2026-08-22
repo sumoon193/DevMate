@@ -4,6 +4,7 @@ API 集成测试。
 覆盖模块 13 规范要求的 6 个核心测试用例，加额外覆盖。
 使用 FastAPI TestClient，不依赖真实网络。
 """
+
 from __future__ import annotations
 
 import pytest
@@ -17,6 +18,7 @@ from app.main import create_app
 def app():
     """每次测试创建新 app 和新容器，保证状态隔离。"""
     from app.api.documents import reset_documents_store
+
     reset_container()
     reset_documents_store()
     application = create_app()
@@ -35,10 +37,13 @@ def _create_run_and_get_pending_approval(
     query: str = "新员工入职到转正要办哪些事项？",
 ) -> tuple[str, str]:
     """创建标准 demo Run，并返回待审批请求 ID。"""
-    create_resp = client.post("/agent-runs", json={
-        "query": query,
-        "user_id": "user_001",
-    })
+    create_resp = client.post(
+        "/agent-runs",
+        json={
+            "query": query,
+            "user_id": "user_001",
+        },
+    )
     assert create_resp.status_code == 201
     run_id = create_resp.json()["id"]
 
@@ -52,12 +57,16 @@ def _create_run_and_get_pending_approval(
 
 # ── 1. test_create_agent_run_returns_run_id ─────────────────────────
 
+
 def test_create_agent_run_returns_run_id(client: TestClient) -> None:
     """创建 Agent Run 应返回有效的 run_id。"""
-    resp = client.post("/agent-runs", json={
-        "query": "入职需要哪些材料？",
-        "user_id": "user_001",
-    })
+    resp = client.post(
+        "/agent-runs",
+        json={
+            "query": "入职需要哪些材料？",
+            "user_id": "user_001",
+        },
+    )
     assert resp.status_code == 201
     data = resp.json()
     assert data["id"].startswith("run_")
@@ -67,13 +76,17 @@ def test_create_agent_run_returns_run_id(client: TestClient) -> None:
 
 # ── 2. test_get_agent_run_returns_steps_evidence_approvals ──────────
 
+
 def test_get_agent_run_returns_steps_evidence_approvals(client: TestClient) -> None:
     """查询 Agent Run 应返回 steps、tool_calls 和 approvals 字段。"""
     # 先创建一个 Run
-    create_resp = client.post("/agent-runs", json={
-        "query": "试用期多久？",
-        "user_id": "user_001",
-    })
+    create_resp = client.post(
+        "/agent-runs",
+        json={
+            "query": "试用期多久？",
+            "user_id": "user_001",
+        },
+    )
     run_id = create_resp.json()["id"]
 
     # 查询详情
@@ -96,11 +109,12 @@ def test_get_agent_run_returns_steps_evidence_approvals(client: TestClient) -> N
     assert data["result"]["plan"]["steps"] == [
         "policy_search",
         "hr_checklist",
-        "create_mock_hr_ticket",
+        "create_hr_ticket",
     ]
 
 
 # ── 3. test_submit_approval_resumes_run ─────────────────────────────
+
 
 def test_submit_approval_resumes_run(client: TestClient) -> None:
     """提交审批后应更新 approval 状态。"""
@@ -144,13 +158,17 @@ def test_get_agent_run_returns_decided_approvals(client: TestClient) -> None:
 
 # ── 4. test_sse_stream_emits_ordered_events ─────────────────────────
 
+
 def test_sse_stream_emits_ordered_events(client: TestClient) -> None:
     """SSE 流应返回 text/event-stream 格式，包含有序事件。"""
     # 创建 Run
-    create_resp = client.post("/agent-runs", json={
-        "query": "报销流程是什么？",
-        "user_id": "user_001",
-    })
+    create_resp = client.post(
+        "/agent-runs",
+        json={
+            "query": "报销流程是什么？",
+            "user_id": "user_001",
+        },
+    )
     run_id = create_resp.json()["id"]
 
     # 获取 SSE 流
@@ -168,6 +186,7 @@ def test_sse_stream_emits_ordered_events(client: TestClient) -> None:
 
 
 # ── 5. test_api_error_shape_is_stable ───────────────────────────────
+
 
 def test_api_error_shape_is_stable(client: TestClient) -> None:
     """API 错误响应必须返回统一格式 { error: { code, message, request_id } }。"""
@@ -187,6 +206,7 @@ def test_api_error_shape_is_stable(client: TestClient) -> None:
 
 # ── 6. test_route_does_not_expose_internal_exception ────────────────
 
+
 def test_route_does_not_expose_internal_exception(client: TestClient) -> None:
     """错误响应不得包含内部堆栈信息。"""
     resp = client.get("/agent-runs/run_nonexistent")
@@ -195,11 +215,12 @@ def test_route_does_not_expose_internal_exception(client: TestClient) -> None:
     error_str = str(data).lower()
     # 不应包含 Python 堆栈关键词
     assert "traceback" not in error_str
-    assert "file \"" not in error_str
+    assert 'file "' not in error_str
     assert ".py" not in error_str
 
 
 # ── 额外覆盖 ────────────────────────────────────────────────────────
+
 
 def test_health_endpoint(client: TestClient) -> None:
     """健康检查端点应返回 ok。"""
@@ -212,7 +233,7 @@ def test_health_endpoint(client: TestClient) -> None:
 
 def test_create_document_returns_id(client: TestClient) -> None:
     """文档上传应返回文档 ID。"""
-    content = "# Onboarding\n\nWelcome to the company.".encode()
+    content = b"# Onboarding\n\nWelcome to the company."
     resp = client.post(
         "/documents",
         files={"file": ("onboarding.md", content, "text/markdown")},
@@ -270,7 +291,7 @@ def test_create_document_returns_queued_when_celery_mode_enabled(monkeypatch) ->
 
 def test_ingestion_status_returns_task_info(client: TestClient) -> None:
     """查询入库任务应返回任务状态。"""
-    content = "# Reimbursement\n\nReimbursement policy.".encode()
+    content = b"# Reimbursement\n\nReimbursement policy."
     doc_resp = client.post(
         "/documents",
         files={"file": ("reimbursement.md", content, "text/markdown")},

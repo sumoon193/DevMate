@@ -3,10 +3,11 @@ Graph Runner。
 
 执行 Agent Graph 的入口。
 """
+
 from __future__ import annotations
 
-import logging
 import json
+import logging
 from collections.abc import AsyncGenerator
 from enum import Enum
 from typing import Any
@@ -17,9 +18,6 @@ from langgraph.types import Command
 from app.schemas.agent import AgentRunResponse
 from app.schemas.approval import ApprovalDecision
 from app.schemas.user import UserContext
-from app.services.observability.context import TraceContext
-from app.services.observability.span import Span, SpanStatus, SpanType
-from app.services.observability.tracer import Tracer
 from app.services.agent.run_manager import AgentRunManager
 from app.services.agent.step_logger import StepLogger
 from app.services.graph.sse import (
@@ -33,6 +31,9 @@ from app.services.graph.sse import (
     create_tool_executed_event,
 )
 from app.services.graph.state import AgentGraphState
+from app.services.observability.context import TraceContext
+from app.services.observability.span import Span, SpanStatus, SpanType
+from app.services.observability.tracer import Tracer
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +67,7 @@ class GraphRunner:
         self._thread_runs: dict[str, str] = {}
 
     async def run(
-        self,
-        query: str,
-        user_context: UserContext,
-        thread_id: str | None = None
+        self, query: str, user_context: UserContext, thread_id: str | None = None
     ) -> AsyncGenerator[str, None]:
         """
         执行 Agent Graph。
@@ -116,7 +114,7 @@ class GraphRunner:
             "approval_decision": None,
             "tool_results": [],
             "answer": None,
-            "errors": []
+            "errors": [],
         }
 
         # 配置
@@ -131,8 +129,12 @@ class GraphRunner:
 
         except Exception as e:
             import traceback
+
             error_detail = traceback.format_exc()
-            logger.error("graph_run_failed", extra={"run_id": run_id, "error": str(e), "traceback": error_detail})
+            logger.error(
+                "graph_run_failed",
+                extra={"run_id": run_id, "error": str(e), "traceback": error_detail},
+            )
             self._record_trace_error(root_span, e)
             yield create_run_failed_event(run_id, str(e))
             await self._run_manager.fail_run(run_id, str(e))
@@ -140,11 +142,7 @@ class GraphRunner:
             self._finish_trace(trace_context, root_span)
 
     async def run_existing(
-        self,
-        run_id: str,
-        query: str,
-        user_context: UserContext,
-        thread_id: str | None = None
+        self, run_id: str, query: str, user_context: UserContext, thread_id: str | None = None
     ) -> AsyncGenerator[str, None]:
         """
         使用已经创建好的 Agent Run 执行 Graph。
@@ -180,7 +178,7 @@ class GraphRunner:
             "approval_decision": None,
             "tool_results": [],
             "answer": None,
-            "errors": []
+            "errors": [],
         }
         config = {"configurable": {"thread_id": thread_id}}
 
@@ -190,8 +188,12 @@ class GraphRunner:
                     yield sse
         except Exception as e:
             import traceback
+
             error_detail = traceback.format_exc()
-            logger.error("graph_existing_run_failed", extra={"run_id": run_id, "error": str(e), "traceback": error_detail})
+            logger.error(
+                "graph_existing_run_failed",
+                extra={"run_id": run_id, "error": str(e), "traceback": error_detail},
+            )
             self._record_trace_error(root_span, e)
             yield create_run_failed_event(run_id, str(e))
             await self._run_manager.fail_run(run_id, str(e))
@@ -199,10 +201,7 @@ class GraphRunner:
             self._finish_trace(trace_context, root_span)
 
     async def run_to_checkpoint(
-        self,
-        query: str,
-        user_context: UserContext,
-        thread_id: str | None = None
+        self, query: str, user_context: UserContext, thread_id: str | None = None
     ) -> AgentRunResponse:
         """执行 Graph 到完成或 interrupt，并返回当前 run 快照。"""
         run_id = ""
@@ -220,10 +219,7 @@ class GraphRunner:
         return await self._run_manager.get_run(run_id)
 
     async def resume(
-        self,
-        thread_id: str,
-        approval_decision: ApprovalDecision,
-        user_context: UserContext
+        self, thread_id: str, approval_decision: ApprovalDecision, user_context: UserContext
     ) -> AsyncGenerator[str, None]:
         """
         恢复执行（审批后）。
@@ -306,7 +302,7 @@ class GraphRunner:
                     yield create_evidence_found_event(
                         run_id,
                         evidence.get("total_count", 0),
-                        evidence.get("query_coverage_score", 0.0)
+                        evidence.get("query_coverage_score", 0.0),
                     )
 
                 elif (
@@ -316,18 +312,13 @@ class GraphRunner:
                 ):
                     tool_call = node_output["pending_tool_call"]
                     yield create_approval_required_event(
-                        run_id,
-                        tool_call.tool_name,
-                        tool_call.parameters,
-                        "write"
+                        run_id, tool_call.tool_name, tool_call.parameters, "write"
                     )
 
                 elif node_name == "tool_execute" and node_output.get("tool_results"):
                     for tool_call in node_output["tool_results"]:
                         yield create_tool_executed_event(
-                            run_id,
-                            tool_call.tool_name,
-                            tool_call.result or {}
+                            run_id, tool_call.tool_name, tool_call.result or {}
                         )
 
                 elif node_name == "answer" and node_output.get("answer"):
@@ -336,7 +327,7 @@ class GraphRunner:
                         run_id,
                         answer.get("answer", ""),
                         answer.get("citations", []),
-                        answer.get("confidence", 0.0)
+                        answer.get("confidence", 0.0),
                     )
 
                 # 发送 step_completed 事件（需要将不可序列化的对象转换为 dict）
@@ -447,12 +438,12 @@ class GraphRunner:
             return {k: self._make_serializable(v) for k, v in obj.items()}
         elif isinstance(obj, list):
             return [self._make_serializable(item) for item in obj]
-        elif hasattr(obj, 'model_dump'):
+        elif hasattr(obj, "model_dump"):
             # Pydantic model
             return obj.model_dump(mode="json")
         elif isinstance(obj, Enum):
             return obj.value
-        elif hasattr(obj, '__dict__'):
+        elif hasattr(obj, "__dict__"):
             # 普通对象
             return {k: self._make_serializable(v) for k, v in obj.__dict__.items()}
         else:

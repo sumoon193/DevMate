@@ -11,7 +11,6 @@ payload 由调用方提供。
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -29,6 +28,8 @@ from app.devmate.ingestion import (
     DM05Input,
     IngestionStore,
     InvalidWebhookError,
+)
+from app.devmate.ingestion import (
     RuntimeEvent as IngestionRuntimeEvent,
 )
 

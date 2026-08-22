@@ -5,11 +5,11 @@ FastAPI 依赖注入。
 - fallback 模式：全部使用 in-memory / fake 实现。
 - full 模式：接入真实外部服务（PostgreSQL / MinIO / Milvus / ES / Redis）。
 """
+
 from __future__ import annotations
 
-from functools import lru_cache
-
 from app.config import get_settings
+from app.core.exceptions import ValidationError
 from app.schemas.enums import ToolRiskLevel
 from app.schemas.tool import ToolDefinition
 from app.services.agent.approval_manager import ApprovalManager
@@ -21,19 +21,43 @@ from app.services.agent.tool_executor import ToolExecutor
 from app.services.agent.tool_registry import ToolRegistry
 from app.services.agent.tools.clarification import ClarificationHandler
 from app.services.agent.tools.hr_checklist import HRChecklistHandler
-from app.services.agent.tools.mock_ticket import MockTicketHandler
 from app.services.agent.tools.policy_search import PolicySearchHandler
 from app.services.agent.tools.user_profile import UserProfileHandler
-from app.services.answer.grounded_answer import FakeAnswerGenerator, GroundedAnswerService
+from app.services.answer.grounded_answer import (
+    FakeAnswerGenerator,
+    GroundedAnswerService,
+)
 from app.services.evaluation.eval_runner import EvalRunner
 from app.services.retrieval.embedding.base import Embedder
 from app.services.retrieval.reranker.base import Reranker
 from app.services.security.acl_validator import ACLValidator
 
 
-def _build_tool_registry() -> ToolRegistry:
+def _build_tool_registry(
+    settings: object | None = None,
+    *,
+    session_factory: object | None = None,
+) -> ToolRegistry:
     """注册 V1 五个工具。"""
     registry = ToolRegistry()
+
+    ticket_handler: object
+    if getattr(settings, "app_mode", "fallback") == "full":
+        if session_factory is None:
+            from app.db.session import get_session_factory
+
+            session_factory = get_session_factory()
+        from app.services.mcp.adapter import McpToolHandler
+        from app.services.mcp.sqlalchemy_server import SqlAlchemyMcpServer
+
+        ticket_handler = McpToolHandler(
+            SqlAlchemyMcpServer(session_factory),  # type: ignore[arg-type]
+            "create_hr_ticket",
+        )
+    else:
+        from app.services.agent.tools.mock_ticket import MockTicketHandler
+
+        ticket_handler = MockTicketHandler()
 
     registry.register(
         ToolDefinition(
@@ -81,25 +105,27 @@ def _build_tool_registry() -> ToolRegistry:
 
     registry.register(
         ToolDefinition(
-            name="create_mock_hr_ticket",
+            name="create_hr_ticket",
             description="创建 HR 工单（需审批）",
             permission_scope="hr.ticket.write",
             risk_level=ToolRiskLevel.WRITE,
             requires_approval=True,
         ),
-        MockTicketHandler(),
+        ticket_handler,  # type: ignore[arg-type]
     )
 
     return registry
 
 
 def _build_ai_adapters(settings: object) -> tuple[object, Embedder, Reranker]:
-    """根据配置选择真实 Qwen adapter 或 deterministic fake。"""
+    """fallback 可显式使用 Fake；full 缺少 Qwen 配置时失败关闭。"""
     from app.services.retrieval.embedding.mock_embedding import MockEmbedder
     from app.services.retrieval.reranker.mock_reranker import MockReranker
 
     api_key = getattr(settings, "qwen_api_key", "")
     if not api_key:
+        if getattr(settings, "app_mode", "fallback") == "full":
+            raise ValidationError("QWEN_API_KEY is required when APP_MODE=full")
         return (
             FakeAnswerGenerator(),
             MockEmbedder(dimension=getattr(settings, "embedding_dim", 1024)),
@@ -144,6 +170,65 @@ def _build_ai_adapters(settings: object) -> tuple[object, Embedder, Reranker]:
     )
 
 
+def _build_ragas_metrics(settings: object) -> object:
+    """full 使用真实 RAGAS；fallback 使用确定性离线指标。"""
+    from app.services.evaluation.ragas_adapter import FakeRAGASMetrics, RealRAGASMetrics
+
+    if getattr(settings, "app_mode", "fallback") != "full":
+        return FakeRAGASMetrics()
+    api_key = getattr(settings, "qwen_api_key", "")
+    if not api_key:
+        raise ValidationError("QWEN_API_KEY is required for real RAGAS evaluation")
+    return RealRAGASMetrics(
+        llm_model=getattr(settings, "qwen_chat_model", "qwen-plus"),
+        api_key=api_key,
+        embedding_model=getattr(settings, "qwen_embedding_model", "text-embedding-v4"),
+        base_url=getattr(
+            settings,
+            "qwen_api_base_url",
+            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        ),
+        timeout_seconds=getattr(settings, "ragas_timeout_seconds", 300.0),
+        language=getattr(settings, "ragas_language", "chinese"),
+    )
+
+
+def _build_memory_semantic_index(settings: object) -> object:
+    """构建生产长期记忆的 Qwen Embedding + Milvus 语义索引。"""
+    from app.services.ai.qwen import QwenEmbedder
+    from app.services.memory.milvus_index import MilvusMemorySemanticIndex
+
+    dimension = getattr(settings, "embedding_dim", 1024)
+    embedder = QwenEmbedder(
+        api_key=getattr(settings, "qwen_api_key", ""),
+        model=getattr(settings, "qwen_embedding_model", "text-embedding-v4"),
+        dimension=dimension,
+        base_url=getattr(
+            settings,
+            "qwen_api_base_url",
+            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        ),
+        timeout_seconds=getattr(settings, "qwen_timeout_seconds", 30.0),
+    )
+    return MilvusMemorySemanticIndex(
+        embedder=embedder,
+        dimension=dimension,
+        host=getattr(settings, "milvus_host", "localhost"),
+        port=getattr(settings, "milvus_port", 19530),
+    )
+
+
+def _build_mcp_server(settings: object, session_factory: object) -> object:
+    """full 使用数据库持久化 MCP；fallback 才允许显式 Fake。"""
+    if getattr(settings, "app_mode", "fallback") == "full":
+        from app.services.mcp.sqlalchemy_server import SqlAlchemyMcpServer
+
+        return SqlAlchemyMcpServer(session_factory)  # type: ignore[arg-type]
+    from app.services.mcp.fake_server import FakeMcpServer
+
+    return FakeMcpServer()
+
+
 def _build_trace_exporter(settings: object) -> object:
     """根据运行模式选择 trace exporter。"""
     if getattr(settings, "app_mode", "fallback") == "full":
@@ -152,6 +237,7 @@ def _build_trace_exporter(settings: object) -> object:
         return OTelTraceExporter(
             endpoint=getattr(settings, "phoenix_endpoint", "http://localhost:6006"),
             service_name="enterprisemind",
+            strict=True,
         )
 
     from app.services.observability.exporters.log_exporter import LogExporter
@@ -167,6 +253,7 @@ def _build_tracer(settings: object) -> object:
 
 
 # ── Service 容器 ─────────────────────────────────────────────────────
+
 
 class ServiceContainer:
     """
@@ -189,7 +276,7 @@ class ServiceContainer:
             settings.approval_mode,
             allow_admin=settings.approval_auto_allow_admin,
         )
-        self.tool_registry = _build_tool_registry()
+        self.tool_registry = _build_tool_registry(settings)
         self.acl_validator = ACLValidator()
         self._init_runtime_services()
         self.tool_executor = ToolExecutor(
@@ -209,8 +296,8 @@ class ServiceContainer:
     def _init_fallback_mode(self) -> None:
         """初始化 fallback 模式（全部 in-memory）。"""
         from app.services.ingestion.store import InMemoryIngestionTaskStore
-        from app.services.retrieval.hybrid import HybridRetriever
         from app.services.retrieval.embedding.mock_embedding import MockEmbedder
+        from app.services.retrieval.hybrid import HybridRetriever
         from app.services.retrieval.reranker.mock_reranker import MockReranker
         from app.services.retrieval.store.memory_bm25 import InMemoryBM25Store
         from app.services.retrieval.store.memory_vector import InMemoryVectorStore
@@ -254,6 +341,7 @@ class ServiceContainer:
 
         # 真实 MinIO 存储
         from app.services.storage.minio_storage import MinIOStorage
+
         self.storage = MinIOStorage(
             endpoint=settings.minio_endpoint,
             access_key=settings.minio_access_key,
@@ -262,10 +350,12 @@ class ServiceContainer:
         )
 
         from app.services.ingestion.worker import build_task_store
+
         self.ingestion_task_store = build_task_store(settings)
 
         # 真实 Milvus 向量存储
         from app.services.retrieval.store.milvus_vector import MilvusVectorStore
+
         self.vector_store = MilvusVectorStore(
             host=settings.milvus_host,
             port=settings.milvus_port,
@@ -274,9 +364,10 @@ class ServiceContainer:
 
         # 真实 ES BM25 存储
         from app.services.retrieval.store.es_bm25 import ElasticsearchBM25Store
+
         self.bm25_store = ElasticsearchBM25Store(es_url=settings.es_url)
 
-        # AI adapter：有 Qwen key 时使用真实模型，否则保持 deterministic fake。
+        # full 模式只允许真实 AI adapter；缺少配置会在装配时失败关闭。
         answer_generator, embedder, reranker = _build_ai_adapters(settings)
         self.answer_generator = answer_generator
         self.embedder = embedder
@@ -293,6 +384,7 @@ class ServiceContainer:
 
         # Redis 速率限制器
         from app.services.security.redis_rate_limiter import RedisRateLimiter
+
         self.rate_limiter = RedisRateLimiter(redis_url=settings.redis_url)
 
         # Run Manager（带 PostgreSQL 持久化）
@@ -307,6 +399,7 @@ class ServiceContainer:
         self.answer_service = GroundedAnswerService(answer_generator=self.answer_generator)
         self.eval_runner = EvalRunner(
             answer_service=self.answer_service,
+            ragas_metrics=_build_ragas_metrics(settings),
         )
 
         self._init_graph_runner()
@@ -335,12 +428,18 @@ class ServiceContainer:
 
     def _init_runtime_services(self) -> None:
         """组装长期 Case、Memory、Skill、MCP 与 A2A fallback 服务。"""
-        from app.services.a2a.policy_research import InProcessA2AClient, PolicyResearchA2AAgent
+        from app.services.a2a.policy_research import (
+            InProcessA2AClient,
+            PolicyResearchA2AAgent,
+        )
         from app.services.agent.tool_executor import ToolExecutor
         from app.services.agent.tool_registry import ToolRegistry
         from app.services.context.compactor import ContextCompactor
-        from app.services.mcp.adapter import McpApprovalBridge, McpToolAdapter, McpToolDiscovery
-        from app.services.mcp.fake_server import FakeMcpServer
+        from app.services.mcp.adapter import (
+            McpApprovalBridge,
+            McpToolAdapter,
+            McpToolDiscovery,
+        )
         from app.services.mcp.protocol_server import LocalMcpProtocolServer
         from app.services.memory.store import InMemoryEpisodicMemoryStore
         from app.services.observability.runtime_metrics import RuntimeMetrics
@@ -383,9 +482,7 @@ class ServiceContainer:
             self.timer_store = SqlAlchemyTimerStore(runtime_sessions)
             self.side_effect_ledger = SqlAlchemySideEffectLedger(runtime_sessions)
             self.lease_store = SqlAlchemyLeaseStore(runtime_sessions)
-            self.document_version_registry = SqlAlchemyDocumentVersionRegistry(
-                runtime_sessions
-            )
+            self.document_version_registry = SqlAlchemyDocumentVersionRegistry(runtime_sessions)
         else:
             from app.services.ingestion.document_versions import (
                 InMemoryDocumentVersionRegistry,
@@ -414,6 +511,7 @@ class ServiceContainer:
             self.memory_store = SqlAlchemyEpisodicMemoryStore(
                 runtime_sessions,
                 clock=clock,
+                semantic_index=_build_memory_semantic_index(self.settings),
             )
         else:
             self.memory_store = InMemoryEpisodicMemoryStore(clock=clock)
@@ -427,7 +525,7 @@ class ServiceContainer:
             version="1.0.0",
             content="先研究当前制度，再生成跨角色计划；所有写操作必须审批。",
             source_uri="repo://skills/hr_onboarding/1.0.0",
-            allowed_tools=["create_mock_hr_ticket"],
+            allowed_tools=["create_hr_ticket"],
             required_permissions=["hr.document.read", "hr.ticket.write"],
         )
         self.skill_registry.activate(onboarding_skill.id, eval_score=0.98)
@@ -441,7 +539,12 @@ class ServiceContainer:
             side_effect_ledger=self.side_effect_ledger,
         )
         self.mcp_adapter = McpToolAdapter(
-            McpToolDiscovery(FakeMcpServer()),
+            McpToolDiscovery(
+                _build_mcp_server(
+                    self.settings,
+                    runtime_sessions if self.settings.app_mode == "full" else None,
+                )
+            ),
             mcp_registry,
             mcp_executor,
         )
@@ -459,9 +562,7 @@ class ServiceContainer:
                     "text": "新员工入职材料、试用期目标与转正评估要求。",
                 }
             },
-            prompts={
-                "plan_hr_case": "基于制度证据生成长期 Case 计划，写操作必须审批。"
-            },
+            prompts={"plan_hr_case": "基于制度证据生成长期 Case 计划，写操作必须审批。"},
         )
         self.onboarding_workflow = OnboardingCaseWorkflow(
             case_service=self.case_service,

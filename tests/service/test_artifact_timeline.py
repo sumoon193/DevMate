@@ -3,9 +3,10 @@ Artifact Timeline 服务测试。
 
 Timeline 是从 run artifacts 派生的复盘视图，不作为新的事实来源。
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.schemas.agent import AgentRunResponse, AgentStep
 from app.schemas.approval import ApprovalRequest
@@ -25,7 +26,7 @@ def _step(node_name: str, output_data: dict) -> AgentStep:
         evidence=[],
         token_usage={},
         duration_ms=1,
-        created_at=datetime(2026, 7, 4, tzinfo=timezone.utc),
+        created_at=datetime(2026, 7, 4, tzinfo=UTC),
     )
 
 
@@ -42,7 +43,7 @@ def test_timeline_builds_ordered_events_from_run_artifacts() -> None:
             ToolCall(
                 id="tool_001",
                 run_id="run_timeline_001",
-                tool_name="create_mock_hr_ticket",
+                tool_name="create_hr_ticket",
                 parameters={"title": "入职工单"},
                 result={"ticket_id": "TK-001"},
                 status=ToolCallStatus.COMPLETED,
@@ -50,8 +51,8 @@ def test_timeline_builds_ordered_events_from_run_artifacts() -> None:
             )
         ],
         result={"answer": "已创建工单", "citations": [{"id": 1}]},
-        created_at=datetime(2026, 7, 4, tzinfo=timezone.utc),
-        completed_at=datetime(2026, 7, 4, tzinfo=timezone.utc),
+        created_at=datetime(2026, 7, 4, tzinfo=UTC),
+        completed_at=datetime(2026, 7, 4, tzinfo=UTC),
     )
     steps = [
         _step("run_created", {"run_id": run.id}),
@@ -67,7 +68,7 @@ def test_timeline_builds_ordered_events_from_run_artifacts() -> None:
             id="appr_001",
             run_id=run.id,
             tool_call_id="tool_001",
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters={"title": "入职工单"},
             expected_effect="创建 HR 工单",
             evidence=[{"citation_id": 1}],
@@ -75,7 +76,7 @@ def test_timeline_builds_ordered_events_from_run_artifacts() -> None:
             status=ApprovalStatus.APPROVED,
             decision=None,
             decided_by="admin",
-            decided_at=datetime(2026, 7, 4, tzinfo=timezone.utc),
+            decided_at=datetime(2026, 7, 4, tzinfo=UTC),
         )
     ]
 
@@ -107,7 +108,7 @@ def test_timeline_redacts_pii_from_summaries() -> None:
         steps=[],
         tool_calls=[],
         result=None,
-        created_at=datetime(2026, 7, 4, tzinfo=timezone.utc),
+        created_at=datetime(2026, 7, 4, tzinfo=UTC),
         completed_at=None,
     )
     steps = [

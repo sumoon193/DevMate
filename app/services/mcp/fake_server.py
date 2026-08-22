@@ -3,6 +3,7 @@
 
 用于在不依赖远程 MCP 生态的情况下验证工具发现和调用治理。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -37,7 +38,7 @@ class FakeMcpServer:
                 },
             ),
             ToolDefinition(
-                name="create_mock_hr_ticket",
+                name="create_hr_ticket",
                 description="通过 MCP 风格工具创建模拟 HR 工单",
                 permission_scope="hr.ticket.write",
                 risk_level=ToolRiskLevel.WRITE,
@@ -104,9 +105,9 @@ class FakeMcpServer:
                 ]
             }
 
-        if name == "create_mock_hr_ticket":
+        if name == "create_hr_ticket":
             title = str(parameters["title"])
-            digest = hashlib.md5(title.encode("utf-8")).hexdigest()[:5].upper()
+            digest = hashlib.sha256(title.encode("utf-8")).hexdigest()[:5].upper()
             return {
                 "ticket_id": f"MCP-TK-{digest}",
                 "title": title,

@@ -6,6 +6,7 @@
 2. RunManager.maybe_auto_approve / auto_approve_and_execute
 3. LangGraph 链路策略命中时跳过 interrupt 全程自动执行
 """
+
 from __future__ import annotations
 
 import pytest
@@ -54,6 +55,7 @@ def _parse_sse_event(event: str) -> dict:
     """解析 SSE 字符串中的 JSON payload。"""
     assert event.startswith("data: ")
     import json
+
     return json.loads(event.split("data: ", 1)[1])
 
 
@@ -99,7 +101,7 @@ def tool_registry() -> ToolRegistry:
 
     registry.register(
         ToolDefinition(
-            name="create_mock_hr_ticket",
+            name="create_hr_ticket",
             description="创建模拟 HR 工单",
             permission_scope="hr.ticket.write",
             risk_level=ToolRiskLevel.WRITE,
@@ -194,7 +196,7 @@ async def _create_run_with_pending_approval(
 
     tool_call = await run_manager.execute_tool(
         run_id=run.id,
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         parameters=TICKET_PARAMS,
         user_context=user_context,
     )
@@ -212,7 +214,7 @@ class TestRuleBasedApprovalPolicy:
         """WRITE 且 allow_writes 时自动 APPROVE。"""
         policy = RuleBasedApprovalPolicy(allow_writes=True)
         decision = policy.evaluate(
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters=TICKET_PARAMS,
             risk_level=ToolRiskLevel.WRITE,
             user_context=user_context,
@@ -223,7 +225,7 @@ class TestRuleBasedApprovalPolicy:
         """WRITE 但 allow_writes=False 时转人工。"""
         policy = RuleBasedApprovalPolicy(allow_writes=False)
         decision = policy.evaluate(
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters=TICKET_PARAMS,
             risk_level=ToolRiskLevel.WRITE,
             user_context=user_context,
@@ -295,7 +297,7 @@ class TestBuildApprovalPolicy:
         assert isinstance(policy, RuleBasedApprovalPolicy)
         assert (
             policy.evaluate(
-                tool_name="create_mock_hr_ticket",
+                tool_name="create_hr_ticket",
                 parameters=TICKET_PARAMS,
                 risk_level=ToolRiskLevel.WRITE,
                 user_context=user_context,
@@ -433,24 +435,17 @@ class TestGraphAutoApprove:
         # 不应发出 approval_required（即没有中断等待人工）
         parsed_events = [_parse_sse_event(e) for e in events]
         approval_events = [
-            e for e in parsed_events
-            if e["type"] == SSEEventType.APPROVAL_REQUIRED.value
+            e for e in parsed_events if e["type"] == SSEEventType.APPROVAL_REQUIRED.value
         ]
         assert approval_events == []
 
         # 写入工具应被执行
-        tool_events = [
-            e for e in parsed_events
-            if e["type"] == SSEEventType.TOOL_EXECUTED.value
-        ]
+        tool_events = [e for e in parsed_events if e["type"] == SSEEventType.TOOL_EXECUTED.value]
         assert len(tool_events) == 1
-        assert tool_events[0]["data"]["tool_name"] == "create_mock_hr_ticket"
+        assert tool_events[0]["data"]["tool_name"] == "create_hr_ticket"
 
         # 审批记录为 policy_engine，Run 正常完成
-        started = [
-            e for e in parsed_events
-            if e["type"] == SSEEventType.RUN_STARTED.value
-        ]
+        started = [e for e in parsed_events if e["type"] == SSEEventType.RUN_STARTED.value]
         run_id = started[0]["run_id"]
 
         approvals = await run_manager.get_run_approvals(run_id)
@@ -461,8 +456,7 @@ class TestGraphAutoApprove:
         run = await run_manager.get_run(run_id)
         assert run.status == RunStatus.COMPLETED
         assert any(
-            tc.tool_name == "create_mock_hr_ticket"
-            and tc.status == ToolCallStatus.COMPLETED
+            tc.tool_name == "create_hr_ticket" and tc.status == ToolCallStatus.COMPLETED
             for tc in run.tool_calls
         )
 
@@ -509,7 +503,8 @@ class TestGraphAutoApprove:
 
         # 首次运行策略未命中，进入 interrupt 等待人工
         approval_events = [
-            e for e in (_parse_sse_event(ev) for ev in events)
+            e
+            for e in (_parse_sse_event(ev) for ev in events)
             if e["type"] == SSEEventType.APPROVAL_REQUIRED.value
         ]
         assert approval_events, "策略首次未命中时应触发 interrupt"
@@ -534,6 +529,4 @@ class TestGraphAutoApprove:
         approvals = await run_manager.get_run_approvals(run_id)
         assert approvals[0].status == ApprovalStatus.REJECTED
         run = await run_manager.get_run(run_id)
-        assert not any(
-            tc.status == ToolCallStatus.COMPLETED for tc in run.tool_calls
-        )
+        assert not any(tc.status == ToolCallStatus.COMPLETED for tc in run.tool_calls)

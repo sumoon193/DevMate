@@ -1,5 +1,5 @@
 <!--
-  AgentConsole 页面：标准 HR demo 的主运行台。
+  AgentConsole 页面：DevMate 研发事件与 Agent Run 工作台。
 -->
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
@@ -19,9 +19,9 @@ const chatContainer = ref<HTMLElement | null>(null)
 const activeTab = ref('steps')
 
 const exampleQueries = [
-  '新员工入职到转正要办哪些事项？',
-  '报销流程是怎样的？',
-  '请假需要什么材料？',
+  '分析最近一次部署失败，并列出证据与恢复步骤',
+  '检索知识库中的数据库迁移规范',
+  '为这个高风险修复生成审批计划',
 ]
 
 const citationCount = computed(() => {
@@ -128,8 +128,8 @@ function confidenceText(result: Record<string, unknown> | null): string | null {
       <section class="surface chat-panel">
         <header class="panel-header">
           <div>
-            <p class="panel-eyebrow">HR workflow demo</p>
-            <h2>问题、计划、审批在同一条 Run 里闭环</h2>
+            <p class="panel-eyebrow">Engineering incident runtime</p>
+            <h2>证据、计划、工具和审批在同一条 Run 中闭环</h2>
           </div>
           <el-tag :type="statusType(agentStore.currentRun?.status)" effect="plain">
             {{ runStatusLabel }}
@@ -227,7 +227,7 @@ function confidenceText(result: Record<string, unknown> | null): string | null {
         <footer class="command-bar">
           <el-input
             v-model="query"
-            placeholder="输入 HR 流程问题"
+            placeholder="输入研发事件、知识检索或修复任务"
             :disabled="agentStore.loading"
             size="large"
             @keyup.enter="handleSubmit"

@@ -1,6 +1,7 @@
 """
 测试 fixtures。
 """
+
 from __future__ import annotations
 
 import os
@@ -10,12 +11,12 @@ from pathlib import Path
 
 import pytest
 
-from app.schemas.enums import DocumentStatus, RunStatus, ToolRiskLevel, Visibility
-from app.schemas.user import UserContext
-from app.schemas.document import DocumentResponse
 from app.schemas.agent import AgentRunResponse
-from app.schemas.tool import ToolDefinition
 from app.schemas.chunk import Citation, DocumentChunk
+from app.schemas.document import DocumentResponse
+from app.schemas.enums import DocumentStatus, RunStatus, ToolRiskLevel, Visibility
+from app.schemas.tool import ToolDefinition
+from app.schemas.user import UserContext
 
 # ── 自动标记 ─────────────────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ def sample_user_context() -> UserContext:
         tenant_id="tenant_hr",
         department_ids=["dept_001", "dept_002"],
         role="hr",
-        permissions=["hr.document.read", "hr.ticket.write"]
+        permissions=["hr.document.read", "hr.ticket.write"],
     )
 
 
@@ -128,7 +129,7 @@ def sample_document() -> DocumentResponse:
         visibility=Visibility.DEPARTMENT,
         metadata={"author": "HR", "version": "1.0"},
         created_at="2026-05-28T10:00:00Z",
-        updated_at="2026-05-28T10:05:00Z"
+        updated_at="2026-05-28T10:05:00Z",
     )
 
 
@@ -145,10 +146,10 @@ def sample_agent_run() -> AgentRunResponse:
         tool_calls=[],
         result={
             "answer": "新员工入职需要提交身份证复印件、学历证明、离职证明等材料。",
-            "citations": []
+            "citations": [],
         },
         created_at="2026-05-28T10:00:00Z",
-        completed_at="2026-05-28T10:01:00Z"
+        completed_at="2026-05-28T10:01:00Z",
     )
 
 
@@ -165,12 +166,9 @@ def sample_tool_definition() -> ToolDefinition:
         idempotent=True,
         parameters_schema={
             "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "top_k": {"type": "integer", "default": 5}
-            },
-            "required": ["query"]
-        }
+            "properties": {"query": {"type": "string"}, "top_k": {"type": "integer", "default": 5}},
+            "required": ["query"],
+        },
     )
 
 
@@ -184,7 +182,7 @@ def sample_citation() -> Citation:
         page=3,
         chunk_text="新员工入职需提交以下材料：1. 身份证复印件；2. 学历证明；3. 离职证明。",
         score=0.92,
-        rerank_score=0.95
+        rerank_score=0.95,
     )
 
 
@@ -205,5 +203,5 @@ def sample_document_chunk() -> DocumentChunk:
         tenant_id="tenant_hr",
         department_id="dept_001",
         visibility=Visibility.DEPARTMENT,
-        acl_metadata={"author": "HR"}
+        acl_metadata={"author": "HR"},
     )

@@ -3,11 +3,12 @@ Agent Step Logger。
 
 记录每一步的执行，用于审计和调试。
 """
+
 from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.schemas.agent import AgentStep
@@ -33,7 +34,7 @@ class StepLogger:
         output_data: dict[str, Any],
         evidence: list[dict] | None = None,
         token_usage: dict[str, int] | None = None,
-        duration_ms: int = 0
+        duration_ms: int = 0,
     ) -> AgentStep:
         """
         记录一个步骤。
@@ -61,7 +62,7 @@ class StepLogger:
             evidence=evidence or [],
             token_usage=token_usage or {},
             duration_ms=duration_ms,
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(UTC),
         )
 
         # 存储步骤
@@ -75,8 +76,8 @@ class StepLogger:
                 "run_id": run_id,
                 "step_id": step_id,
                 "node_name": node_name,
-                "duration_ms": duration_ms
-            }
+                "duration_ms": duration_ms,
+            },
         )
 
         return step

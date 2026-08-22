@@ -1,13 +1,14 @@
 """工业化 Agent Runtime ORM 模型测试。"""
+
 from __future__ import annotations
 
 import inspect as pyinspect
 
 from sqlalchemy import create_engine, inspect
 
-from app.models.base import Base
 import app.models  # noqa: F401
 from app.db.crud import upsert_approval
+from app.models.base import Base
 
 
 def test_runtime_metadata_creates_governance_tables() -> None:

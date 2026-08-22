@@ -4,11 +4,12 @@
 为 AgentRun、AgentStep、ApprovalRequest、ToolCall 提供数据库持久化。
 仅在 app_mode=full 时使用。
 """
+
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,9 @@ from app.schemas.enums import (
     RunStatus,
     ToolCallStatus,
 )
+
+if TYPE_CHECKING:
+    from app.models.ingestion_task import IngestionTaskRecord
 
 logger = logging.getLogger(__name__)
 _UNSET = object()
@@ -85,11 +89,9 @@ async def update_run_status(
     if result_data is not None:
         values["result"] = result_data
     if status in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED):
-        values["completed_at"] = datetime.now(timezone.utc)
+        values["completed_at"] = datetime.now(UTC)
 
-    await session.execute(
-        update(AgentRun).where(AgentRun.id == run_id).values(**values)
-    )
+    await session.execute(update(AgentRun).where(AgentRun.id == run_id).values(**values))
     await session.commit()
     logger.info("db_run_status_updated", extra={"run_id": run_id, "status": _enum_value(status)})
 
@@ -128,9 +130,7 @@ async def save_step(
 async def get_steps(session: AsyncSession, run_id: str) -> list[AgentStep]:
     """获取指定 Run 的所有步骤。"""
     result = await session.execute(
-        select(AgentStep)
-        .where(AgentStep.run_id == run_id)
-        .order_by(AgentStep.created_at)
+        select(AgentStep).where(AgentStep.run_id == run_id).order_by(AgentStep.created_at)
     )
     return list(result.scalars().all())
 
@@ -295,24 +295,19 @@ async def upsert_approval(
         "revoke_reason": revoke_reason,
     }
     await session.execute(
-        update(ApprovalRequest)
-        .where(ApprovalRequest.id == approval_id)
-        .values(**values)
+        update(ApprovalRequest).where(ApprovalRequest.id == approval_id).values(**values)
     )
     await session.commit()
     logger.info("db_approval_upserted", extra={"approval_id": approval_id})
     refreshed = await get_approval(session, approval_id)
-    assert refreshed is not None
+    if refreshed is None:
+        raise RuntimeError(f"Approval disappeared after upsert: {approval_id}")
     return refreshed
 
 
-async def get_approval(
-    session: AsyncSession, approval_id: str
-) -> ApprovalRequest | None:
+async def get_approval(session: AsyncSession, approval_id: str) -> ApprovalRequest | None:
     """按 ID 获取审批请求。"""
-    result = await session.execute(
-        select(ApprovalRequest).where(ApprovalRequest.id == approval_id)
-    )
+    result = await session.execute(select(ApprovalRequest).where(ApprovalRequest.id == approval_id))
     return result.scalar_one_or_none()
 
 
@@ -330,12 +325,10 @@ async def update_approval(
     if decided_by is not None:
         values["decided_by"] = decided_by
     if status != ApprovalStatus.PENDING:
-        values["decided_at"] = datetime.now(timezone.utc)
+        values["decided_at"] = datetime.now(UTC)
 
     await session.execute(
-        update(ApprovalRequest)
-        .where(ApprovalRequest.id == approval_id)
-        .values(**values)
+        update(ApprovalRequest).where(ApprovalRequest.id == approval_id).values(**values)
     )
     await session.commit()
     logger.info(
@@ -344,9 +337,7 @@ async def update_approval(
     )
 
 
-async def get_pending_approvals(
-    session: AsyncSession, run_id: str
-) -> list[ApprovalRequest]:
+async def get_pending_approvals(session: AsyncSession, run_id: str) -> list[ApprovalRequest]:
     """获取指定 Run 的所有待审批请求。"""
     result = await session.execute(
         select(ApprovalRequest).where(
@@ -357,13 +348,9 @@ async def get_pending_approvals(
     return list(result.scalars().all())
 
 
-async def get_all_approvals(
-    session: AsyncSession, run_id: str
-) -> list[ApprovalRequest]:
+async def get_all_approvals(session: AsyncSession, run_id: str) -> list[ApprovalRequest]:
     """获取指定 Run 的所有审批请求（含已决定）。"""
-    result = await session.execute(
-        select(ApprovalRequest).where(ApprovalRequest.run_id == run_id)
-    )
+    result = await session.execute(select(ApprovalRequest).where(ApprovalRequest.run_id == run_id))
     return list(result.scalars().all())
 
 
@@ -399,9 +386,7 @@ async def save_tool_call(
 
 async def get_tool_call(session: AsyncSession, tool_call_id: str) -> ToolCall | None:
     """按 ID 获取工具调用记录。"""
-    result = await session.execute(
-        select(ToolCall).where(ToolCall.id == tool_call_id)
-    )
+    result = await session.execute(select(ToolCall).where(ToolCall.id == tool_call_id))
     return result.scalar_one_or_none()
 
 
@@ -445,7 +430,8 @@ async def upsert_tool_call(
     await session.commit()
     logger.info("db_tool_call_upserted", extra={"tool_call_id": tool_call_id})
     refreshed = await get_tool_call(session, tool_call_id)
-    assert refreshed is not None
+    if refreshed is None:
+        raise RuntimeError(f"Tool call disappeared after upsert: {tool_call_id}")
     return refreshed
 
 
@@ -459,9 +445,7 @@ async def update_tool_call(
     values: dict[str, Any] = {"status": _enum_value(status)}
     if result_data is not None:
         values["result"] = result_data
-    await session.execute(
-        update(ToolCall).where(ToolCall.id == tool_call_id).values(**values)
-    )
+    await session.execute(update(ToolCall).where(ToolCall.id == tool_call_id).values(**values))
     await session.commit()
 
 
@@ -512,8 +496,8 @@ async def update_ingestion_task(
     current_stage: str | None = None,
     progress: float | None = None,
     total_chunks: int | None = None,
-    error_message: str | None | object = _UNSET,
-    error_code: str | None | object = _UNSET,
+    error_message: str | object | None = _UNSET,
+    error_code: str | object | None = _UNSET,
     stages_json: list[Any] | None = None,
 ) -> None:
     """更新入库任务状态。"""
@@ -537,9 +521,7 @@ async def update_ingestion_task(
         return
 
     await session.execute(
-        update(IngestionTaskRecord)
-        .where(IngestionTaskRecord.id == task_id)
-        .values(**values)
+        update(IngestionTaskRecord).where(IngestionTaskRecord.id == task_id).values(**values)
     )
     await session.commit()
 

@@ -3,12 +3,12 @@
 
 模块 03 规范要求的 5 个测试用例。
 """
+
 from __future__ import annotations
 
 from types import SimpleNamespace
 
 import pytest
-import pytest_asyncio
 
 from app.schemas.chunk import ChunkCreate
 from app.schemas.enums import Visibility
@@ -23,8 +23,8 @@ from app.services.retrieval.store.base import ACLFilter
 from app.services.retrieval.store.memory_bm25 import InMemoryBM25Store
 from app.services.retrieval.store.memory_vector import InMemoryVectorStore
 
-
 # ── Fixtures ─────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def parser_registry() -> ParserRegistry:
@@ -45,7 +45,9 @@ def bm25_store() -> InMemoryBM25Store:
 
 
 @pytest.fixture
-def pipeline(parser_registry: ParserRegistry, vector_store: InMemoryVectorStore) -> IngestionPipeline:
+def pipeline(
+    parser_registry: ParserRegistry, vector_store: InMemoryVectorStore
+) -> IngestionPipeline:
     return IngestionPipeline(
         parser_registry=parser_registry,
         chunker=HybridChunker(),
@@ -114,6 +116,7 @@ def _chunk(index: int) -> ChunkCreate:
 
 # ── 1. test_upload_creates_document_and_task ─────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_upload_creates_document_and_task(pipeline: IngestionPipeline) -> None:
     """上传文档应创建 document 和 IngestionTask，完成后状态为 ready。"""
@@ -141,6 +144,7 @@ async def test_upload_creates_document_and_task(pipeline: IngestionPipeline) -> 
 
 # ── 2. test_upload_rejects_unsupported_extension ─────────────────────
 
+
 def test_upload_rejects_unsupported_extension() -> None:
     """不支持的文件扩展名应返回 None。"""
     assert IngestionPipeline.detect_mime_type("image.png") is None
@@ -153,6 +157,7 @@ def test_upload_rejects_unsupported_extension() -> None:
 
 
 # ── 3. test_ingestion_status_updates_stage_progress ──────────────────
+
 
 @pytest.mark.asyncio
 async def test_ingestion_status_updates_stage_progress(pipeline: IngestionPipeline) -> None:
@@ -192,6 +197,7 @@ async def test_ingestion_status_updates_stage_progress(pipeline: IngestionPipeli
 
 # ── 4. test_failed_task_records_error_message ────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_failed_task_records_error_message(parser_registry: ParserRegistry) -> None:
     """入库失败应记录 error_message 和 error_code。"""
@@ -227,6 +233,7 @@ async def test_failed_task_records_error_message(parser_registry: ParserRegistry
 
 
 # ── 5. test_retry_single_stage_does_not_duplicate_chunks ─────────────
+
 
 @pytest.mark.asyncio
 async def test_retry_single_stage_does_not_duplicate_chunks(
@@ -272,8 +279,7 @@ async def test_retry_single_stage_does_not_duplicate_chunks(
         top_k=100,
     )
     indexed_doc_results = [
-        result for result in indexed_results
-        if result.document_id == "doc_retry_001"
+        result for result in indexed_results if result.document_id == "doc_retry_001"
     ]
     assert len(indexed_doc_results) == first_chunk_count
 

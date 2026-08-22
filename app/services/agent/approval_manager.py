@@ -3,6 +3,7 @@ Approval Manager。
 
 管理审批流程，包括创建、审批、拒绝和编辑审批请求。
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -100,7 +101,11 @@ class ApprovalManager:
             expected_effect=expected_effect,
             evidence=bound_evidence,
             risk_level=risk_level,
-            options=[ApprovalDecisionType.APPROVE, ApprovalDecisionType.EDIT, ApprovalDecisionType.REJECT],
+            options=[
+                ApprovalDecisionType.APPROVE,
+                ApprovalDecisionType.EDIT,
+                ApprovalDecisionType.REJECT,
+            ],
             status=ApprovalStatus.PENDING,
             decision=None,
             decided_by=None,
@@ -123,8 +128,8 @@ class ApprovalManager:
                 "approval_id": approval_id,
                 "run_id": run_id,
                 "tool_name": tool_name,
-                "risk_level": risk_level.value
-            }
+                "risk_level": risk_level.value,
+            },
         )
 
         return request
@@ -142,10 +147,7 @@ class ApprovalManager:
         """
         request = self._get_request(approval_id)
         self._validate_pending(request)
-        if (
-            request.risk_level == ToolRiskLevel.ADMIN
-            and request.requested_by == decided_by
-        ):
+        if request.risk_level == ToolRiskLevel.ADMIN and request.requested_by == decided_by:
             raise ValidationError(
                 f"Admin approval requires maker-checker separation: {approval_id}"
             )
@@ -163,13 +165,12 @@ class ApprovalManager:
             output_data={
                 "decision": "approve",
                 "decided_by": decided_by,
-                "tool_name": request.tool_name
-            }
+                "tool_name": request.tool_name,
+            },
         )
 
         logger.info(
-            "approval_granted",
-            extra={"approval_id": approval_id, "decided_by": decided_by}
+            "approval_granted", extra={"approval_id": approval_id, "decided_by": decided_by}
         )
 
         return request
@@ -201,22 +202,18 @@ class ApprovalManager:
             output_data={
                 "decision": "reject",
                 "decided_by": decided_by,
-                "tool_name": request.tool_name
-            }
+                "tool_name": request.tool_name,
+            },
         )
 
         logger.info(
-            "approval_rejected",
-            extra={"approval_id": approval_id, "decided_by": decided_by}
+            "approval_rejected", extra={"approval_id": approval_id, "decided_by": decided_by}
         )
 
         return request
 
     def edit_and_approve(
-        self,
-        approval_id: str,
-        edited_parameters: dict[str, Any],
-        decided_by: str
+        self, approval_id: str, edited_parameters: dict[str, Any], decided_by: str
     ) -> ApprovalRequest:
         """
         编辑参数后审批。
@@ -255,8 +252,7 @@ class ApprovalManager:
                 "subject_hash": revised_subject_hash,
                 "supersedes_approval_id": request.id,
                 "requested_at": self._clock.now(),
-                "expires_at": self._clock.now()
-                + timedelta(seconds=self._default_ttl_seconds),
+                "expires_at": self._clock.now() + timedelta(seconds=self._default_ttl_seconds),
                 "decided_by": decided_by,
                 "decided_at": self._clock.now(),
             },
@@ -277,12 +273,12 @@ class ApprovalManager:
                 "tool_name": request.tool_name,
                 "superseded_approval_id": request.id,
                 "revised_approval_id": revised.id,
-            }
+            },
         )
 
         logger.info(
             "approval_edited_and_granted",
-            extra={"approval_id": approval_id, "decided_by": decided_by}
+            extra={"approval_id": approval_id, "decided_by": decided_by},
         )
 
         return revised
@@ -304,9 +300,7 @@ class ApprovalManager:
         existing = self._requests.get(request.id)
         if existing is not None:
             if existing.subject_hash != request.subject_hash:
-                raise ValidationError(
-                    f"Restored approval subject mismatch: {request.id}"
-                )
+                raise ValidationError(f"Restored approval subject mismatch: {request.id}")
             return existing
         self._requests[request.id] = request.model_copy(deep=True)
         return self._requests[request.id]
@@ -322,7 +316,8 @@ class ApprovalManager:
             待审批请求列表
         """
         return [
-            r for r in self._requests.values()
+            r
+            for r in self._requests.values()
             if r.run_id == run_id and r.status == ApprovalStatus.PENDING
         ]
 
@@ -429,7 +424,7 @@ class ApprovalManager:
 
     def _generate_expected_effect(self, tool_name: str, parameters: dict[str, Any]) -> str:
         """生成预期影响描述。"""
-        if tool_name == "create_mock_hr_ticket":
+        if tool_name == "create_hr_ticket":
             title = parameters.get("title", "未命名工单")
             return f"将创建一个 HR 工单：{title}"
         else:
@@ -438,9 +433,5 @@ class ApprovalManager:
     def _generate_evidence(self, tool_name: str, parameters: dict[str, Any]) -> list[dict]:
         """生成证据（模拟）。"""
         return [
-            {
-                "source": "user_request",
-                "content": f"用户请求执行 {tool_name}",
-                "confidence": 0.9
-            }
+            {"source": "user_request", "content": f"用户请求执行 {tool_name}", "confidence": 0.9}
         ]

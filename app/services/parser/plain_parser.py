@@ -3,10 +3,13 @@ Plain-text Parser。
 
 解析纯文本文档，按段落切分。
 """
+
 from __future__ import annotations
 
 import logging
 from typing import Any
+
+import anyio
 
 from app.services.parser.base import Block, BlockType, ParsedDocument
 
@@ -25,10 +28,7 @@ class PlainTextParser:
     supported_types: set[str] = {"text/plain", "text/x-plain"}
 
     async def parse(
-        self,
-        file_path: str,
-        document_id: str,
-        metadata: dict[str, Any]
+        self, file_path: str, document_id: str, metadata: dict[str, Any]
     ) -> ParsedDocument:
         """
         解析纯文本文档。
@@ -42,12 +42,10 @@ class PlainTextParser:
             解析后的文档结构
         """
         logger.info(
-            "parsing_plain_text",
-            extra={"file_path": file_path, "document_id": document_id}
+            "parsing_plain_text", extra={"file_path": file_path, "document_id": document_id}
         )
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        content = await anyio.Path(file_path).read_text(encoding="utf-8")
 
         # 提取标题（第一个非空行）
         title = self._extract_title(content)
@@ -71,7 +69,7 @@ class PlainTextParser:
             images=[],
             metadata=metadata,
             parser_used="plain_text",
-            total_pages=total_pages
+            total_pages=total_pages,
         )
 
     def _extract_title(self, content: str) -> str:
@@ -95,23 +93,27 @@ class PlainTextParser:
 
             # 检测是否是标题（全大写或带下划线）
             if self._is_heading(para):
-                blocks.append(Block(
-                    block_id=f"block_{order_index}",
-                    block_type=BlockType.HEADING,
-                    text=para,
-                    page_number=1,
-                    heading_path=para,
-                    order_index=order_index
-                ))
+                blocks.append(
+                    Block(
+                        block_id=f"block_{order_index}",
+                        block_type=BlockType.HEADING,
+                        text=para,
+                        page_number=1,
+                        heading_path=para,
+                        order_index=order_index,
+                    )
+                )
             else:
-                blocks.append(Block(
-                    block_id=f"block_{order_index}",
-                    block_type=BlockType.PARAGRAPH,
-                    text=para,
-                    page_number=1,
-                    heading_path="",
-                    order_index=order_index
-                ))
+                blocks.append(
+                    Block(
+                        block_id=f"block_{order_index}",
+                        block_type=BlockType.PARAGRAPH,
+                        text=para,
+                        page_number=1,
+                        heading_path="",
+                        order_index=order_index,
+                    )
+                )
 
             order_index += 1
 

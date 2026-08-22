@@ -1,15 +1,16 @@
 """跨轮次 HRCase 应用服务。"""
+
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
-from datetime import datetime, timezone
 
 from app.core.exceptions import NotFoundError
 from app.schemas.runtime import DurableTimer, ExecutionManifest, HRCase
+from app.services.observability.runtime_metrics import RuntimeMetrics
 from app.services.runtime.interfaces import CaseProjectionStore, EventStore
 from app.services.runtime.projection import CaseProjector
-from app.services.observability.runtime_metrics import RuntimeMetrics
 
 
 class CaseService:
@@ -218,7 +219,6 @@ class CaseService:
             if self._metrics is not None:
                 lag_ms = max(
                     0.0,
-                    (datetime.now(timezone.utc) - projection.updated_at).total_seconds()
-                    * 1000,
+                    (datetime.now(UTC) - projection.updated_at).total_seconds() * 1000,
                 )
                 self._metrics.observe("runtime.projection.lag_ms", lag_ms)

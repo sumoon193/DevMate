@@ -3,10 +3,11 @@ IngestionTask 状态模型。
 
 跟踪文档入库的每个阶段：进度、耗时、错误。
 """
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -15,6 +16,7 @@ from pydantic import BaseModel, Field
 
 class IngestionStage(StrEnum):
     """入库阶段。"""
+
     QUEUED = "queued"
     PARSING = "parsing"
     CLEANING = "cleaning"
@@ -42,6 +44,7 @@ _STAGE_PROGRESS: dict[IngestionStage, float] = {
 
 class StageRecord(BaseModel):
     """单个阶段执行记录。"""
+
     stage: IngestionStage
     started_at: datetime
     completed_at: datetime | None = None
@@ -57,6 +60,7 @@ class IngestionTask(BaseModel):
 
     跟踪文档从上传到入库完成的完整生命周期。
     """
+
     id: str = Field(default_factory=lambda: f"ing_{uuid.uuid4().hex[:12]}")
     document_id: str
     document_version: str = "v1"
@@ -69,18 +73,20 @@ class IngestionTask(BaseModel):
     error_code: str | None = None
     stages: list[StageRecord] = Field(default_factory=list)
     total_chunks: int = 0
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def start_stage(self, stage: IngestionStage) -> None:
         """开始一个阶段。"""
         self.current_stage = stage
         self.progress = _STAGE_PROGRESS.get(stage, self.progress)
-        self.updated_at = datetime.now(timezone.utc)
-        self.stages.append(StageRecord(
-            stage=stage,
-            started_at=datetime.now(timezone.utc),
-        ))
+        self.updated_at = datetime.now(UTC)
+        self.stages.append(
+            StageRecord(
+                stage=stage,
+                started_at=datetime.now(UTC),
+            )
+        )
 
     def complete_stage(
         self,
@@ -88,7 +94,7 @@ class IngestionTask(BaseModel):
         chunk_count: int = 0,
     ) -> None:
         """完成一个阶段。"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self.updated_at = now
         self.progress = _STAGE_PROGRESS.get(stage, self.progress)
         if chunk_count > 0:
@@ -98,9 +104,7 @@ class IngestionTask(BaseModel):
         for record in reversed(self.stages):
             if record.stage == stage and record.completed_at is None:
                 record.completed_at = now
-                record.duration_ms = int(
-                    (now - record.started_at).total_seconds() * 1000
-                )
+                record.duration_ms = int((now - record.started_at).total_seconds() * 1000)
                 record.chunk_count = chunk_count
                 break
 
@@ -111,7 +115,7 @@ class IngestionTask(BaseModel):
         error_code: str = "ingestion_error",
     ) -> None:
         """标记阶段失败。"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self.current_stage = IngestionStage.FAILED
         self.error_message = error_message
         self.error_code = error_code
@@ -120,9 +124,7 @@ class IngestionTask(BaseModel):
         for record in reversed(self.stages):
             if record.stage == stage and record.completed_at is None:
                 record.completed_at = now
-                record.duration_ms = int(
-                    (now - record.started_at).total_seconds() * 1000
-                )
+                record.duration_ms = int((now - record.started_at).total_seconds() * 1000)
                 record.success = False
                 record.error_message = error_message
                 break

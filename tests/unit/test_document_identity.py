@@ -1,4 +1,5 @@
 """版本化文档与稳定 chunk identity 测试。"""
+
 from __future__ import annotations
 
 import pytest
@@ -6,8 +7,8 @@ import pytest
 from app.core.exceptions import ValidationError
 from app.schemas.chunk import ChunkCreate, Citation
 from app.schemas.enums import Visibility
-from app.services.ingestion.identity import stable_chunk_id
 from app.services.ingestion.document_versions import InMemoryDocumentVersionRegistry
+from app.services.ingestion.identity import stable_chunk_id
 from app.services.retrieval.evidence_freshness import EvidenceFreshnessValidator
 from app.services.retrieval.store.base import ACLFilter
 from app.services.retrieval.store.memory_bm25 import InMemoryBM25Store

@@ -6,7 +6,7 @@ RepairPlan 只生成不可变 patch artifact。
 
 from __future__ import annotations
 
-from app.devmate.repair.plan import EmptyPlanError, RepairPlan
+from app.devmate.repair.plan import RepairPlan
 from app.devmate.repair.types import DM08Input, DM08Result
 
 

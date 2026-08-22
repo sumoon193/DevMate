@@ -1,6 +1,53 @@
 name: enterprisemind
 
+x-app-environment: &app-environment
+  APP_MODE: full
+  ENVIRONMENT: prod
+  AGENT_RUN_ENGINE: langgraph
+  GRAPH_CHECKPOINTER_BACKEND: postgres
+  POSTGRES_URL: postgresql://enterprisemind:${POSTGRES_PASSWORD:-change_me_local}@postgres:5432/${POSTGRES_DB:-enterprisemind}
+  REDIS_URL: redis://redis:6379/0
+  MINIO_ENDPOINT: http://minio:9000
+  MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+  MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+  MINIO_BUCKET: ${MINIO_BUCKET:-enterprisemind-docs}
+  MILVUS_HOST: milvus
+  MILVUS_PORT: "19530"
+  ES_URL: http://elasticsearch:9200
+  INGESTION_EXECUTION_MODE: celery
+  INGESTION_TASK_STORE: redis
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/2
+  QWEN_API_KEY: ${QWEN_API_KEY:-}
+  QWEN_CHAT_MODEL: ${QWEN_CHAT_MODEL:-qwen-plus}
+  QWEN_EMBEDDING_MODEL: ${QWEN_EMBEDDING_MODEL:-text-embedding-v4}
+  QWEN_RERANK_MODEL: ${QWEN_RERANK_MODEL:-qwen3-rerank}
+  RAGAS_TIMEOUT_SECONDS: ${RAGAS_TIMEOUT_SECONDS:-300}
+  RAGAS_LANGUAGE: ${RAGAS_LANGUAGE:-chinese}
+  PHOENIX_ENDPOINT: http://phoenix:6006
+  OIDC_ISSUER_URL: http://localhost:8180/realms/devmate
+  OIDC_JWKS_URL: http://keycloak:8080/realms/devmate/protocol/openid-connect/certs
+  OIDC_AUDIENCE: devmate-web
+
 services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: devmate-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD}
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./docker/keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '200' <&3"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
   postgres:
     image: postgres:16-alpine
     container_name: enterprisemind-postgres
@@ -125,6 +172,94 @@ services:
       timeout: 10s
       retries: 10
 
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: enterprisemind-phoenix
+    profiles: ["full"]
+    ports:
+      - "6006:6006"
+      - "4317:4317"
+    environment:
+      PHOENIX_WORKING_DIR: /mnt/data
+    volumes:
+      - phoenix_data:/mnt/data
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: enterprisemind-api
+    profiles: ["full"]
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      milvus:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      phoenix:
+        condition: service_started
+      keycloak:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_KEYCLOAK_URL: http://localhost:8180
+        VITE_KEYCLOAK_REALM: devmate
+        VITE_KEYCLOAK_CLIENT_ID: devmate-web
+    container_name: devmate-frontend
+    profiles: ["full"]
+    ports:
+      - "3100:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: enterprisemind-worker
+    profiles: ["full"]
+    command: ["celery", "-A", "app.services.ingestion.celery_app:celery_app", "worker", "--loglevel=INFO"]
+    environment:
+      <<: *app-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+      milvus:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A app.services.ingestion.celery_app:celery_app inspect ping -d celery@$${HOSTNAME} --timeout 5 | grep -q pong",
+        ]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+
 volumes:
   postgres_data:
   redis_data:
@@ -132,3 +267,4 @@ volumes:
   etcd_data:
   milvus_data:
   elasticsearch_data:
+  phoenix_data:

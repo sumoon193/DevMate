@@ -35,13 +35,9 @@ def parse_typed_diagnosis(raw: str) -> TypedDiagnosis:
         raise DiagnosisParseError(f"invalid severity: {severity}")
 
     confidence = _parse_float(fields.get("confidence", "1.0"))
-    evidence = tuple(
-        part.strip()
-        for part in fields.get("evidence", "").split(",")
-        if part.strip()
-    )
+    evidence = tuple(part.strip() for part in fields.get("evidence", "").split(",") if part.strip())
     diagnosis_id = hashlib.sha256(
-        f"{fields['summary']}:{severity}:{fields['rule']}".encode("utf-8")
+        f"{fields['summary']}:{severity}:{fields['rule']}".encode()
     ).hexdigest()[:12]
     return TypedDiagnosis(
         diagnosis_id=diagnosis_id,

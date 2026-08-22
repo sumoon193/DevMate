@@ -1,7 +1,8 @@
 """可替换时间源，确保定时与过期测试可重复。"""
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
 from app.core.exceptions import ValidationError
@@ -20,7 +21,7 @@ class SystemClock:
 
     def now(self) -> datetime:
         """返回当前 UTC 时间。"""
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
 
 class FakeClock:
@@ -29,7 +30,7 @@ class FakeClock:
     def __init__(self, current: datetime) -> None:
         if current.tzinfo is None:
             raise ValidationError("FakeClock requires a timezone-aware datetime")
-        self._current = current.astimezone(timezone.utc)
+        self._current = current.astimezone(UTC)
 
     def now(self) -> datetime:
         """返回 fake 当前时间。"""

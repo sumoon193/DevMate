@@ -7,6 +7,7 @@ Chunker 测试。
 3. test_contextual_prefix_uses_source_metadata
 4. test_chunk_page_numbers_are_preserved
 """
+
 from __future__ import annotations
 
 import os
@@ -16,8 +17,8 @@ import pytest_asyncio
 
 from app.schemas.enums import Visibility
 from app.services.chunker.base import ChunkConfig
-from app.services.chunker.hybrid import HybridChunker
 from app.services.chunker.context_enricher import ContextEnricher
+from app.services.chunker.hybrid import HybridChunker
 from app.services.chunker.semantic import SemanticChunker
 from app.services.chunker.structural import StructuralChunker
 from app.services.parser.base import ParsedDocument
@@ -40,8 +41,8 @@ async def parsed_md_doc(sample_md_path: str) -> ParsedDocument:
         metadata={
             "tenant_id": "tenant_hr",
             "department_id": "dept_001",
-            "visibility": "department"
-        }
+            "visibility": "department",
+        },
     )
 
 
@@ -53,7 +54,7 @@ def chunk_config() -> ChunkConfig:
         max_child_tokens=300,
         min_child_tokens=50,
         overlap_tokens=30,
-        preserve_tables=True
+        preserve_tables=True,
     )
 
 
@@ -62,9 +63,7 @@ class TestHybridChunker:
 
     @pytest.mark.asyncio
     async def test_chunker_creates_parent_child_relationship(
-        self,
-        parsed_md_doc: ParsedDocument,
-        chunk_config: ChunkConfig
+        self, parsed_md_doc: ParsedDocument, chunk_config: ChunkConfig
     ):
         """测试 1：Chunker 创建 parent-child 关系。"""
         chunker = HybridChunker()
@@ -81,21 +80,21 @@ class TestHybridChunker:
 
         # 验证 parent chunk 的 parent_id 为 None
         for parent in parent_chunks:
-            assert parent.parent_id is None, f"Parent chunk should have parent_id=None"
+            assert parent.parent_id is None, "Parent chunk should have parent_id=None"
 
         # 验证每个 child 都有 parent_id
         for child in child_chunks:
-            assert child.parent_id is not None, f"Child chunk should have parent_id"
-            assert child.parent_id.startswith("chunk_"), f"Parent ID should start with 'chunk_'"
+            assert child.parent_id is not None, "Child chunk should have parent_id"
+            assert child.parent_id.startswith("chunk_"), "Parent ID should start with 'chunk_'"
 
         # 验证 child 数量大于等于 parent 数量
-        assert len(child_chunks) >= len(parent_chunks), "Should have at least as many child chunks as parent chunks"
+        assert len(child_chunks) >= len(parent_chunks), (
+            "Should have at least as many child chunks as parent chunks"
+        )
 
     @pytest.mark.asyncio
     async def test_table_chunk_keeps_header_context(
-        self,
-        parsed_md_doc: ParsedDocument,
-        chunk_config: ChunkConfig
+        self, parsed_md_doc: ParsedDocument, chunk_config: ChunkConfig
     ):
         """测试 2：表格 chunk 保留表头上下文。"""
         chunker = HybridChunker()
@@ -116,9 +115,7 @@ class TestHybridChunker:
 
     @pytest.mark.asyncio
     async def test_contextual_prefix_uses_source_metadata(
-        self,
-        parsed_md_doc: ParsedDocument,
-        chunk_config: ChunkConfig
+        self, parsed_md_doc: ParsedDocument, chunk_config: ChunkConfig
     ):
         """测试 3：Contextual prefix 使用源文档元数据。"""
         chunker = HybridChunker()
@@ -127,13 +124,14 @@ class TestHybridChunker:
 
         # 验证所有 chunk 都有 context_prefix
         for chunk in chunks:
-            assert chunk.context_prefix, f"Chunk should have context_prefix"
+            assert chunk.context_prefix, "Chunk should have context_prefix"
             assert len(chunk.context_prefix) > 10, "Context prefix should have meaningful length"
 
         # 验证 prefix 包含文档名
         for chunk in chunks:
-            assert "sample.md" in chunk.context_prefix or "入职" in chunk.context_prefix, \
-                f"Context prefix should reference document name"
+            assert "sample.md" in chunk.context_prefix or "入职" in chunk.context_prefix, (
+                "Context prefix should reference document name"
+            )
 
         # 验证有标题路径的 chunk 包含章节信息
         chunks_with_heading = [c for c in chunks if c.heading_path]
@@ -141,14 +139,13 @@ class TestHybridChunker:
             # heading_path 的内容应该出现在 prefix 中
             heading_parts = chunk.heading_path.split(" > ")
             # 至少有一个部分出现在 prefix 中
-            assert any(part in chunk.context_prefix for part in heading_parts if len(part) > 2), \
-                f"Context prefix should include heading path content"
+            assert any(part in chunk.context_prefix for part in heading_parts if len(part) > 2), (
+                "Context prefix should include heading path content"
+            )
 
     @pytest.mark.asyncio
     async def test_chunk_page_numbers_are_preserved(
-        self,
-        parsed_md_doc: ParsedDocument,
-        chunk_config: ChunkConfig
+        self, parsed_md_doc: ParsedDocument, chunk_config: ChunkConfig
     ):
         """测试 4：chunk 页码被保留。"""
         chunker = HybridChunker()
@@ -159,7 +156,9 @@ class TestHybridChunker:
         for chunk in chunks:
             assert isinstance(chunk.page_numbers, list), "page_numbers should be a list"
             assert len(chunk.page_numbers) > 0, "page_numbers should not be empty"
-            assert all(isinstance(p, int) for p in chunk.page_numbers), "page_numbers should contain integers"
+            assert all(isinstance(p, int) for p in chunk.page_numbers), (
+                "page_numbers should contain integers"
+            )
 
         # 验证 child chunk 继承了 parent 的页码
         parent_chunks = [c for c in chunks if c.chunk_type == "parent"]
@@ -170,8 +169,9 @@ class TestHybridChunker:
             parent_children = [c for c in child_chunks if c.parent_id == parent.document_id]
             for child in parent_children:
                 # child 的页码应该是 parent 页码的子集
-                assert set(child.page_numbers).issubset(set(parent.page_numbers)), \
+                assert set(child.page_numbers).issubset(set(parent.page_numbers)), (
                     "Child page_numbers should be subset of parent page_numbers"
+                )
 
 
 class TestStructuralChunker:
@@ -179,9 +179,7 @@ class TestStructuralChunker:
 
     @pytest.mark.asyncio
     async def test_structural_chunker_creates_parent_chunks(
-        self,
-        parsed_md_doc: ParsedDocument,
-        chunk_config: ChunkConfig
+        self, parsed_md_doc: ParsedDocument, chunk_config: ChunkConfig
     ):
         """测试 Structural Chunker 创建 parent chunks。"""
         chunker = StructuralChunker()
@@ -199,9 +197,7 @@ class TestStructuralChunker:
 
     @pytest.mark.asyncio
     async def test_structural_chunker_preserves_heading_hierarchy(
-        self,
-        parsed_md_doc: ParsedDocument,
-        chunk_config: ChunkConfig
+        self, parsed_md_doc: ParsedDocument, chunk_config: ChunkConfig
     ):
         """测试 Structural Chunker 保留标题层级。"""
         chunker = StructuralChunker()
@@ -221,9 +217,7 @@ class TestSemanticChunker:
 
     @pytest.mark.asyncio
     async def test_semantic_chunker_respects_token_limit(
-        self,
-        parsed_md_doc: ParsedDocument,
-        chunk_config: ChunkConfig
+        self, parsed_md_doc: ParsedDocument, chunk_config: ChunkConfig
     ):
         """测试 Semantic Chunker 遵守 token 限制。"""
         # 先用 Structural Chunker 生成 parent
@@ -237,8 +231,9 @@ class TestSemanticChunker:
 
             # 验证每个 child 的 token 数不超过限制（允许 10% 误差）
             for child in child_chunks:
-                assert child.token_count <= chunk_config.max_child_tokens * 1.1, \
+                assert child.token_count <= chunk_config.max_child_tokens * 1.1, (
                     f"Child chunk token count {child.token_count} exceeds limit {chunk_config.max_child_tokens}"
+                )
 
 
 class TestContextEnricher:
@@ -250,13 +245,14 @@ class TestContextEnricher:
 
         # 创建测试 chunk
         from app.schemas.chunk import ChunkCreate
+
         chunk = ChunkCreate(
             document_id="doc_001",
             chunk_text="新员工入职需要提交身份证复印件和学历证明。",
             tenant_id="tenant_hr",
             department_id="dept_001",
             visibility=Visibility.DEPARTMENT,
-            heading_path="员工入职制度 > 第二章 入职材料"
+            heading_path="员工入职制度 > 第二章 入职材料",
         )
 
         enriched = enricher.enrich([chunk], "员工入职制度.pdf")

@@ -16,14 +16,19 @@ import type {
   CaseEventPage,
   RuntimeMetricsSnapshot,
   ApprovalDecisionType,
+  MemoryPage,
+  MemoryRecord,
+  InfrastructureResponse,
 } from '@/types'
+import { accessToken } from '@/auth/session'
 
 const BASE = '/api'
 
 /** 通用 fetch wrapper，统一错误处理 */
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  const token = accessToken()
   const res = await fetch(`${BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options?.headers },
     ...options,
   })
   if (!res.ok) {
@@ -55,7 +60,12 @@ export async function uploadDocument(
   form.append('department_id', departmentId)
   form.append('visibility', visibility)
 
-  const res = await fetch(`${BASE}/documents`, { method: 'POST', body: form })
+  const token = accessToken()
+  const res = await fetch(`${BASE}/documents`, {
+    method: 'POST',
+    body: form,
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
   if (!res.ok) {
     const body = await res.text()
     throw new Error(`API ${res.status}: ${body}`)
@@ -181,4 +191,19 @@ export function refreshCasePolicy(
 
 export function getRuntimeMetrics(): Promise<RuntimeMetricsSnapshot> {
   return request<RuntimeMetricsSnapshot>('/metrics/runtime')
+}
+
+export function listMemories(tenantId: string): Promise<MemoryPage> {
+  return request<MemoryPage>('/memories', { headers: { 'X-Tenant-ID': tenantId } })
+}
+
+export function deleteMemory(memoryId: string, tenantId: string): Promise<MemoryRecord> {
+  return request<MemoryRecord>(`/memories/${memoryId}`, {
+    method: 'DELETE',
+    headers: { 'X-Tenant-ID': tenantId },
+  })
+}
+
+export function getInfrastructure(): Promise<InfrastructureResponse> {
+  return request<InfrastructureResponse>('/infrastructure')
 }

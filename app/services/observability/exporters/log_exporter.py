@@ -3,6 +3,7 @@
 
 使用标准库 logging 输出 Trace 信息（fallback 模式）。
 """
+
 from __future__ import annotations
 
 import logging
@@ -45,8 +46,8 @@ class LogExporter:
                 "trace_id": context.trace_id,
                 "run_id": context.run_id,
                 "user_id": context.user_id,
-                "span_count": len(spans)
-            }
+                "span_count": len(spans),
+            },
         )
 
         # 导出每个 Span
@@ -65,11 +66,11 @@ class LogExporter:
                 "trace_id": span.trace_id,
                 "span_id": span.span_id,
                 "span_type": span.span_type.value,
-                "name": span.name,
+                "span_name": span.name,
                 "status": span.status.value,
                 "duration_ms": span.duration_ms,
-                "attributes": attributes
-            }
+                "attributes": attributes,
+            },
         )
 
     def _sanitize_attributes(self, attributes: dict) -> dict:
@@ -82,10 +83,7 @@ class LogExporter:
         Returns:
             脱敏后的属性
         """
-        sensitive_keys = {
-            "api_key", "token", "password", "secret",
-            "authorization", "credential"
-        }
+        sensitive_keys = {"api_key", "token", "password", "secret", "authorization", "credential"}
 
         sanitized = {}
         for key, value in attributes.items():
@@ -119,5 +117,5 @@ class LogExporter:
             "span_count": len(spans),
             "total_duration_ms": total_duration,
             "error_count": error_count,
-            "created_at": context.created_at.isoformat()
+            "created_at": context.created_at.isoformat(),
         }

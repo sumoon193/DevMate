@@ -220,3 +220,26 @@ export interface RuntimeMetricsSnapshot {
   observations: Record<string, number[]>
   generated_at: string
 }
+
+export interface MemoryRecord {
+  id: string
+  tenant_id: string
+  case_id: string
+  memory_key: string
+  content: string
+  provenance_event_ids: string[]
+  importance_score: number
+  access_count: number
+  status: 'active' | 'quarantined' | 'expired' | 'deleted'
+  poisoning_reason: string | null
+  created_at: string
+  updated_at: string
+  expires_at: string | null
+}
+
+export interface MemoryPage { items: MemoryRecord[]; total: number }
+export interface InfrastructureResponse {
+  mode: string
+  acceptance: string
+  services: Array<{ name: string; status: string; latency_ms?: number; error?: string }>
+}

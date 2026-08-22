@@ -13,9 +13,9 @@ from app.devmate.models.types import DM07Input, DM07Result, TypedDiagnosis
 
 __all__ = [
     "CaseCommand",
-    "DiagnosisParseError",
     "DM07Input",
     "DM07Result",
+    "DiagnosisParseError",
     "InvalidModeError",
     "ModelProvider",
     "ModelUnavailableError",

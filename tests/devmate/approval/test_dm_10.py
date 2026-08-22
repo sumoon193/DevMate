@@ -9,9 +9,9 @@ from __future__ import annotations
 import pytest
 
 from app.devmate.approval import (
+    ApprovalExpiredError,
     ApprovalNotFoundError,
     ApprovalRequest,
-    ApprovalExpiredError,
     ApprovalStore,
     CaseCommand,
     DM10Input,

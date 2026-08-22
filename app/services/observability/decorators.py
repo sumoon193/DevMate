@@ -3,11 +3,13 @@ Trace 装饰器。
 
 使用装饰器包装业务函数，自动记录 Trace。
 """
+
 from __future__ import annotations
 
 import functools
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from app.services.observability.context import TraceContext
 from app.services.observability.span import SpanStatus, SpanType
@@ -28,6 +30,7 @@ def trace_agent_run(tracer: Tracer) -> Callable:
     Returns:
         装饰器
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -39,9 +42,7 @@ def trace_agent_run(tracer: Tracer) -> Callable:
             # 开始 Trace
             context = tracer.start_trace(run_id, user_id, tenant_id)
             span = tracer.start_span(
-                context=context,
-                span_type=SpanType.AGENT_RUN,
-                name=func.__name__
+                context=context, span_type=SpanType.AGENT_RUN, name=func.__name__
             )
 
             try:
@@ -57,6 +58,7 @@ def trace_agent_run(tracer: Tracer) -> Callable:
                 tracer.export_trace(context.trace_id)
 
         return wrapper
+
     return decorator
 
 
@@ -71,6 +73,7 @@ def trace_retrieval(tracer: Tracer, context: TraceContext) -> Callable:
     Returns:
         装饰器
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -81,7 +84,7 @@ def trace_retrieval(tracer: Tracer, context: TraceContext) -> Callable:
                 context=context,
                 span_type=SpanType.RETRIEVAL_SEARCH,
                 name=func.__name__,
-                parent=parent
+                parent=parent,
             )
 
             try:
@@ -101,6 +104,7 @@ def trace_retrieval(tracer: Tracer, context: TraceContext) -> Callable:
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -115,6 +119,7 @@ def trace_tool_call(tracer: Tracer, context: TraceContext) -> Callable:
     Returns:
         装饰器
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -128,7 +133,7 @@ def trace_tool_call(tracer: Tracer, context: TraceContext) -> Callable:
                 span_type=SpanType.TOOL_CALL,
                 name=tool_name,
                 parent=parent,
-                attributes={"tool_name": tool_name}
+                attributes={"tool_name": tool_name},
             )
 
             try:
@@ -146,6 +151,7 @@ def trace_tool_call(tracer: Tracer, context: TraceContext) -> Callable:
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -160,6 +166,7 @@ def trace_llm_call(tracer: Tracer, context: TraceContext) -> Callable:
     Returns:
         装饰器
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -173,7 +180,7 @@ def trace_llm_call(tracer: Tracer, context: TraceContext) -> Callable:
                 span_type=SpanType.LLM_CALL,
                 name=func.__name__,
                 parent=parent,
-                attributes={"model_name": model_name}
+                attributes={"model_name": model_name},
             )
 
             try:
@@ -193,6 +200,7 @@ def trace_llm_call(tracer: Tracer, context: TraceContext) -> Callable:
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -207,6 +215,7 @@ def trace_guardrail_check(tracer: Tracer, context: TraceContext) -> Callable:
     Returns:
         装饰器
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -217,7 +226,7 @@ def trace_guardrail_check(tracer: Tracer, context: TraceContext) -> Callable:
                 context=context,
                 span_type=SpanType.GUARDRAIL_CHECK,
                 name=func.__name__,
-                parent=parent
+                parent=parent,
             )
 
             try:
@@ -235,4 +244,5 @@ def trace_guardrail_check(tracer: Tracer, context: TraceContext) -> Callable:
                 raise
 
         return wrapper
+
     return decorator

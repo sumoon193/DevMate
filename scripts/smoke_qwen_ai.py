@@ -3,6 +3,7 @@
 运行前确保本地 .env 已填写 QWEN_API_KEY。
 该脚本不会打印 API key。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,7 +21,7 @@ from app.services.ai.qwen import QwenAnswerGenerator, QwenEmbedder, QwenReranker
 
 
 async def main() -> None:
-    settings = Settings()
+    settings = Settings(_env_file=None)
     if not settings.qwen_api_key:
         raise SystemExit("QWEN_API_KEY is empty; please fill local .env first.")
 
@@ -57,7 +58,11 @@ async def main() -> None:
 
     print("qwen_chat=ok", f"chars={len(answer)}")
     print("qwen_embedding=ok", f"dimension={len(embedding)}")
-    print("qwen_rerank=ok", f"top_chunk={reranked[0].chunk_id}", f"score={reranked[0].rerank_score:.3f}")
+    print(
+        "qwen_rerank=ok",
+        f"top_chunk={reranked[0].chunk_id}",
+        f"score={reranked[0].rerank_score:.3f}",
+    )
 
 
 def _result(chunk_id: str, text: str) -> RetrievalResult:

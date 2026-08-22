@@ -9,14 +9,12 @@ from __future__ import annotations
 import pytest
 
 from app.devmate.recovery import (
-    CheckpointPort,
     DM12Input,
     DM12Result,
     LeaseConflictError,
     LeaseExpiredError,
     NotLeaseOwnerError,
     RecoveryCheckpoint,
-    RecoveryStore,
 )
 
 
@@ -75,21 +73,15 @@ def test_expired_owner_resume_is_rejected() -> None:
     checkpoint.execute(_input(owner="worker-A", now=0))
 
     with pytest.raises(LeaseExpiredError):
-        checkpoint.execute(
-            _input(action="resume", side_effect_id="eff-1", now=31)
-        )
+        checkpoint.execute(_input(action="resume", side_effect_id="eff-1", now=31))
 
 
 def test_concurrent_resume_no_duplicate_side_effect() -> None:
     checkpoint = RecoveryCheckpoint(ttl=30)
     checkpoint.execute(_input(owner="worker-A", now=0))
 
-    first = checkpoint.execute(
-        _input(action="resume", side_effect_id="eff-1", now=5)
-    )
-    second = checkpoint.execute(
-        _input(action="resume", side_effect_id="eff-1", now=6)
-    )
+    first = checkpoint.execute(_input(action="resume", side_effect_id="eff-1", now=5))
+    second = checkpoint.execute(_input(action="resume", side_effect_id="eff-1", now=6))
 
     assert first.duplicate is False
     assert second.duplicate is True
@@ -100,9 +92,7 @@ def test_non_owner_resume_is_rejected() -> None:
     checkpoint.execute(_input(owner="worker-A", now=0))
 
     with pytest.raises(NotLeaseOwnerError):
-        checkpoint.execute(
-            _input(action="resume", owner="worker-B", side_effect_id="eff-1", now=5)
-        )
+        checkpoint.execute(_input(action="resume", owner="worker-B", side_effect_id="eff-1", now=5))
 
 
 def test_release_clears_lease() -> None:

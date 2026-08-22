@@ -15,7 +15,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-
 EXCLUDED_PATHS = {"README-DEVMATE.md"}
 SENSITIVE_FILE_NAMES = {
     ".env",
@@ -67,11 +66,7 @@ def _list_paths(repo: Path) -> list[str]:
         "--exclude-standard",
         "--full-name",
     )
-    paths = {
-        item.decode("utf-8")
-        for item in output.split(b"\0")
-        if item.strip()
-    }
+    paths = {item.decode("utf-8") for item in output.split(b"\0") if item.strip()}
     return sorted(path for path in paths if path not in EXCLUDED_PATHS)
 
 
@@ -112,10 +107,7 @@ def _reuse_decision(
     domain: str,
     source_commit: str,
 ) -> str:
-    if (
-        license_status in {"unknown", "unconfirmed", "conflict"}
-        or source_commit == "untracked"
-    ):
+    if license_status in {"unknown", "unconfirmed", "conflict"} or source_commit == "untracked":
         return "review"
     if domain in {"hr", "rag"}:
         return "isolate"
@@ -130,14 +122,16 @@ def _coupling_tags(repo: Path, path: str, domain: str) -> list[str]:
     if Path(path).suffix.lower() != ".py":
         return [f"domain:{domain}"] if domain != "unknown" else []
 
-    source = _resolve_within_repo(repo, path).read_text(
-        encoding="utf-8",
-        errors="replace",
-    ).lower()
-    markers = ("hr", "rag", "prompt", "schema", "config", "api")
-    return sorted(
-        {f"{marker}_reference" for marker in markers if marker in source}
+    source = (
+        _resolve_within_repo(repo, path)
+        .read_text(
+            encoding="utf-8",
+            errors="replace",
+        )
+        .lower()
     )
+    markers = ("hr", "rag", "prompt", "schema", "config", "api")
+    return sorted({f"{marker}_reference" for marker in markers if marker in source})
 
 
 def generate_origin_map(repo: Path) -> list[dict[str, Any]]:
@@ -190,9 +184,7 @@ def write_origin_map(repo: Path, output: Path) -> None:
     records = generate_origin_map(repo)
     head_after = repository_head(repo)
     if head_before != head_after:
-        raise RuntimeError(
-            "repository HEAD changed during origin map generation; re-run"
-        )
+        raise RuntimeError("repository HEAD changed during origin map generation; re-run")
 
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=f"{output.name}.",

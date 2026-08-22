@@ -9,9 +9,11 @@ Agent Harness 测试。
 5. test_invalid_status_transition_is_rejected
 6. test_tool_registry_refuses_unregistered_tool
 """
+
 from __future__ import annotations
 
 import pytest
+
 from app.core.exceptions import NotFoundError, PermissionError, ValidationError
 from app.schemas.enums import RunStatus, ToolRiskLevel
 from app.schemas.tool import ToolDefinition
@@ -37,7 +39,7 @@ def user_context() -> UserContext:
         tenant_id="tenant_hr",
         department_ids=["dept_001"],
         role="hr",
-        permissions=["hr.document.read", "hr.ticket.write"]
+        permissions=["hr.document.read", "hr.ticket.write"],
     )
 
 
@@ -68,9 +70,9 @@ def tool_registry() -> ToolRegistry:
             requires_approval=False,
             timeout_seconds=10,
             idempotent=True,
-            parameters_schema={"query": {"type": "string"}}
+            parameters_schema={"query": {"type": "string"}},
         ),
-        PolicySearchHandler()
+        PolicySearchHandler(),
     )
 
     registry.register(
@@ -82,9 +84,9 @@ def tool_registry() -> ToolRegistry:
             requires_approval=False,
             timeout_seconds=5,
             idempotent=True,
-            parameters_schema={"user_id": {"type": "string"}}
+            parameters_schema={"user_id": {"type": "string"}},
         ),
-        UserProfileHandler()
+        UserProfileHandler(),
     )
 
     registry.register(
@@ -96,9 +98,9 @@ def tool_registry() -> ToolRegistry:
             requires_approval=False,
             timeout_seconds=5,
             idempotent=True,
-            parameters_schema={"scenario": {"type": "string"}}
+            parameters_schema={"scenario": {"type": "string"}},
         ),
-        HRChecklistHandler()
+        HRChecklistHandler(),
     )
 
     registry.register(
@@ -110,24 +112,24 @@ def tool_registry() -> ToolRegistry:
             requires_approval=False,
             timeout_seconds=5,
             idempotent=True,
-            parameters_schema={"question": {"type": "string"}}
+            parameters_schema={"question": {"type": "string"}},
         ),
-        ClarificationHandler()
+        ClarificationHandler(),
     )
 
     # 注册写入型工具
     registry.register(
         ToolDefinition(
-            name="create_mock_hr_ticket",
+            name="create_hr_ticket",
             description="创建模拟 HR 工单",
             permission_scope="hr.ticket.write",
             risk_level=ToolRiskLevel.WRITE,
             requires_approval=True,
             timeout_seconds=10,
             idempotent=True,
-            parameters_schema={"title": {"type": "string"}, "description": {"type": "string"}}
+            parameters_schema={"title": {"type": "string"}, "description": {"type": "string"}},
         ),
-        MockTicketHandler()
+        MockTicketHandler(),
     )
 
     return registry
@@ -135,9 +137,7 @@ def tool_registry() -> ToolRegistry:
 
 @pytest.fixture
 def tool_executor(
-    tool_registry: ToolRegistry,
-    approval_manager: ApprovalManager,
-    step_logger: StepLogger
+    tool_registry: ToolRegistry, approval_manager: ApprovalManager, step_logger: StepLogger
 ) -> ToolExecutor:
     """Tool Executor。"""
     return ToolExecutor(tool_registry, approval_manager, step_logger)
@@ -145,9 +145,7 @@ def tool_executor(
 
 @pytest.fixture
 def run_manager(
-    tool_executor: ToolExecutor,
-    approval_manager: ApprovalManager,
-    step_logger: StepLogger
+    tool_executor: ToolExecutor, approval_manager: ApprovalManager, step_logger: StepLogger
 ) -> AgentRunManager:
     """Agent Run Manager。"""
     return AgentRunManager(tool_executor, approval_manager, step_logger)
@@ -183,9 +181,7 @@ class TestToolExecution:
 
     @pytest.mark.asyncio
     async def test_read_tool_executes_without_approval(
-        self,
-        run_manager: AgentRunManager,
-        user_context: UserContext
+        self, run_manager: AgentRunManager, user_context: UserContext
     ):
         """测试 2：读取型工具无需审批即可执行。"""
         # 创建 Run
@@ -197,7 +193,7 @@ class TestToolExecution:
             run_id=run.id,
             tool_name="policy_search",
             parameters={"query": "入职材料"},
-            user_context=user_context
+            user_context=user_context,
         )
 
         # 验证
@@ -208,9 +204,7 @@ class TestToolExecution:
 
     @pytest.mark.asyncio
     async def test_run_records_tool_call_history(
-        self,
-        run_manager: AgentRunManager,
-        user_context: UserContext
+        self, run_manager: AgentRunManager, user_context: UserContext
     ):
         """测试：Agent Run 应记录已触发的工具调用，供 API 详情展示。"""
         run = await run_manager.create_run("测试查询", user_context)
@@ -220,7 +214,7 @@ class TestToolExecution:
             run_id=run.id,
             tool_name="policy_search",
             parameters={"query": "入职材料"},
-            user_context=user_context
+            user_context=user_context,
         )
 
         updated_run = await run_manager.get_run(run.id)
@@ -230,9 +224,7 @@ class TestToolExecution:
 
     @pytest.mark.asyncio
     async def test_write_tool_requires_approval_before_execution(
-        self,
-        run_manager: AgentRunManager,
-        user_context: UserContext
+        self, run_manager: AgentRunManager, user_context: UserContext
     ):
         """测试 1：写入型工具必须先审批后执行。"""
         # 创建 Run
@@ -242,9 +234,9 @@ class TestToolExecution:
         # 执行写入型工具
         tool_call = await run_manager.execute_tool(
             run_id=run.id,
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters={"title": "入职申请", "description": "新员工入职"},
-            user_context=user_context
+            user_context=user_context,
         )
 
         # 验证
@@ -257,17 +249,14 @@ class TestToolExecution:
         assert updated_run.status == RunStatus.AWAITING_APPROVAL
 
     @pytest.mark.asyncio
-    async def test_tool_execution_requires_permission_scope(
-        self,
-        run_manager: AgentRunManager
-    ):
+    async def test_tool_execution_requires_permission_scope(self, run_manager: AgentRunManager):
         """测试：工具执行路径必须校验用户权限，未授权时不能创建审批。"""
         unauthorized_user = UserContext(
             user_id="user_no_write",
             tenant_id="tenant_hr",
             department_ids=["dept_001"],
             role="employee",
-            permissions=["hr.document.read"]
+            permissions=["hr.document.read"],
         )
         run = await run_manager.create_run("创建工单", unauthorized_user)
         await run_manager.start_run(run.id)
@@ -275,9 +264,9 @@ class TestToolExecution:
         with pytest.raises(PermissionError):
             await run_manager.execute_tool(
                 run_id=run.id,
-                tool_name="create_mock_hr_ticket",
+                tool_name="create_hr_ticket",
                 parameters={"title": "入职申请", "description": "新员工入职"},
-                user_context=unauthorized_user
+                user_context=unauthorized_user,
             )
 
         pending_approvals = await run_manager.get_pending_approvals(run.id)
@@ -295,7 +284,7 @@ class TestApprovalFlow:
         self,
         run_manager: AgentRunManager,
         approval_manager: ApprovalManager,
-        user_context: UserContext
+        user_context: UserContext,
     ):
         """测试 3：审批后恢复保持相同的 Run ID。"""
         # 创建 Run
@@ -303,11 +292,11 @@ class TestApprovalFlow:
         await run_manager.start_run(run.id)
 
         # 执行写入型工具
-        tool_call = await run_manager.execute_tool(
+        await run_manager.execute_tool(
             run_id=run.id,
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters={"title": "入职申请", "description": "新员工入职"},
-            user_context=user_context
+            user_context=user_context,
         )
 
         # 获取待审批请求
@@ -321,9 +310,7 @@ class TestApprovalFlow:
 
         # 恢复执行
         resumed_run = await run_manager.resume_after_approval(
-            run_id=run.id,
-            approval_id=approval_id,
-            user_context=user_context
+            run_id=run.id, approval_id=approval_id, user_context=user_context
         )
 
         # 验证 Run ID 不变
@@ -335,7 +322,7 @@ class TestApprovalFlow:
         run_manager: AgentRunManager,
         approval_manager: ApprovalManager,
         step_logger: StepLogger,
-        user_context: UserContext
+        user_context: UserContext,
     ):
         """测试 4：拒绝后记录审计步骤。"""
         # 创建 Run
@@ -343,11 +330,11 @@ class TestApprovalFlow:
         await run_manager.start_run(run.id)
 
         # 执行写入型工具
-        tool_call = await run_manager.execute_tool(
+        await run_manager.execute_tool(
             run_id=run.id,
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters={"title": "入职申请", "description": "新员工入职"},
-            user_context=user_context
+            user_context=user_context,
         )
 
         # 获取待审批请求
@@ -372,7 +359,7 @@ class TestApprovalFlow:
         run_manager: AgentRunManager,
         approval_manager: ApprovalManager,
         step_logger: StepLogger,
-        user_context: UserContext
+        user_context: UserContext,
     ):
         """测试：审批通过也必须记录审计步骤。"""
         run = await run_manager.create_run("创建工单", user_context)
@@ -380,9 +367,9 @@ class TestApprovalFlow:
 
         await run_manager.execute_tool(
             run_id=run.id,
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters={"title": "入职申请", "description": "新员工入职"},
-            user_context=user_context
+            user_context=user_context,
         )
 
         pending_approvals = await run_manager.get_pending_approvals(run.id)
@@ -444,9 +431,7 @@ class TestAgentRunLifecycle:
 
     @pytest.mark.asyncio
     async def test_run_lifecycle_complete(
-        self,
-        run_manager: AgentRunManager,
-        user_context: UserContext
+        self, run_manager: AgentRunManager, user_context: UserContext
     ):
         """测试完整的 Run 生命周期。"""
         # 创建 Run
@@ -459,6 +444,7 @@ class TestAgentRunLifecycle:
 
         # 模拟检索证据
         from app.schemas.chunk import Citation, EvidenceBundle
+
         evidence = EvidenceBundle(
             evidence_list=[
                 Citation(
@@ -468,22 +454,23 @@ class TestAgentRunLifecycle:
                     page=3,
                     chunk_text="入职材料",
                     score=0.9,
-                    rerank_score=0.95
+                    rerank_score=0.95,
                 )
             ],
             total_count=1,
-            query_coverage_score=0.9
+            query_coverage_score=0.9,
         )
         run = await run_manager.retrieve_evidence(run.id, evidence)
         assert run.status == RunStatus.RETRIEVING_EVIDENCE
 
         # 创建计划
         from app.schemas.agent import AgentPlan
+
         plan = AgentPlan(
             id="plan_001",
             run_id=run.id,
             steps=["policy_search", "generate_hr_checklist"],
-            current_step_index=0
+            current_step_index=0,
         )
         run = await run_manager.create_plan(run.id, plan)
         assert run.status == RunStatus.PLANNING
@@ -493,14 +480,14 @@ class TestAgentRunLifecycle:
             run_id=run.id,
             tool_name="policy_search",
             parameters={"query": "入职材料"},
-            user_context=user_context
+            user_context=user_context,
         )
         assert tool_call.status == "completed"
 
         # 完成 Run
         result = {
             "answer": "新员工入职需要提交身份证复印件、学历证明和离职证明。",
-            "citations": tool_call.result.get("citations", [])
+            "citations": tool_call.result.get("citations", []),
         }
         run = await run_manager.complete_run(run.id, result)
         assert run.status == RunStatus.COMPLETED
@@ -511,7 +498,7 @@ class TestAgentRunLifecycle:
         self,
         run_manager: AgentRunManager,
         approval_manager: ApprovalManager,
-        user_context: UserContext
+        user_context: UserContext,
     ):
         """测试带审批流程的 Run。"""
         # 创建 Run
@@ -521,9 +508,9 @@ class TestAgentRunLifecycle:
         # 执行写入型工具（需要审批）
         tool_call = await run_manager.execute_tool(
             run_id=run.id,
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters={"title": "入职申请", "description": "新员工入职"},
-            user_context=user_context
+            user_context=user_context,
         )
         assert tool_call.approval_required is True
 
@@ -537,9 +524,7 @@ class TestAgentRunLifecycle:
 
         # 恢复执行
         run = await run_manager.resume_after_approval(
-            run_id=run.id,
-            approval_id=pending_approvals[0].id,
-            user_context=user_context
+            run_id=run.id, approval_id=pending_approvals[0].id, user_context=user_context
         )
         assert run.status == RunStatus.RESUMED
 

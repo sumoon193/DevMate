@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from app.devmate.diagnostics.checkpoint import CheckpointPort, DiagnosticsCheckpoint
-from app.devmate.diagnostics.models import DM06Input, DM06Result, DiagnosticFinding
+from app.devmate.diagnostics.models import DiagnosticFinding, DM06Input, DM06Result
 
 __all__ = [
     "CheckpointPort",
-    "DiagnosticsCheckpoint",
-    "DiagnosticFinding",
     "DM06Input",
     "DM06Result",
+    "DiagnosticFinding",
+    "DiagnosticsCheckpoint",
 ]

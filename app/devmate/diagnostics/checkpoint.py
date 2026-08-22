@@ -12,7 +12,7 @@ import json
 from typing import Protocol
 
 from app.devmate.diagnostics.analyzer import analyze
-from app.devmate.diagnostics.models import DM06Input, DM06Result, DiagnosticFinding
+from app.devmate.diagnostics.models import DiagnosticFinding, DM06Input, DM06Result
 
 
 class CheckpointPort(Protocol):
@@ -42,10 +42,7 @@ class DiagnosticsCheckpoint:
 
 def _signature(findings: list[DiagnosticFinding]) -> str:
     canonical = json.dumps(
-        [
-            [f.rule, f.severity, f.message, f.source, f.line]
-            for f in findings
-        ],
+        [[f.rule, f.severity, f.message, f.source, f.line] for f in findings],
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),

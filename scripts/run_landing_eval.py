@@ -16,13 +16,14 @@
 
 不依赖 Docker、云 API key 或外部网络；不运行 pytest。
 """
+
 from __future__ import annotations
 
 import argparse
 import json
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +60,7 @@ class LandingEvalDataError(ValueError):
 class DisabledPromptGuard:
     """治理关闭态的 PromptGuard：永远检测不到注入（即 before 世界没有这道防线）。"""
 
-    def detect_injection(self, text: str) -> tuple[bool, str]:  # noqa: ARG002
+    def detect_injection(self, text: str) -> tuple[bool, str]:
         return False, ""
 
 
@@ -165,16 +166,18 @@ def run_safety_cases(records: list[dict[str, Any]]) -> list[CaseOutcome]:
         result_before = report_before.results[0]
         result_after = report_after.results[0]
 
-        outcomes.append(CaseOutcome(
-            case_id=record["id"],
-            violation_type=record.get("violation_type", record["category"]),
-            title=record.get("title", record["id"]),
-            known_gap=bool(record.get("known_gap", False)),
-            before_passed=result_before.passed,
-            before_reason=result_before.failure_reason,
-            after_passed=result_after.passed,
-            after_reason=result_after.failure_reason,
-        ))
+        outcomes.append(
+            CaseOutcome(
+                case_id=record["id"],
+                violation_type=record.get("violation_type", record["category"]),
+                title=record.get("title", record["id"]),
+                known_gap=bool(record.get("known_gap", False)),
+                before_passed=result_before.passed,
+                before_reason=result_before.failure_reason,
+                after_passed=result_after.passed,
+                after_reason=result_after.failure_reason,
+            )
+        )
     return outcomes
 
 
@@ -194,16 +197,18 @@ def run_trajectory_cases(records: list[dict[str, Any]]) -> list[TrajectoryOutcom
 
         detected = [v.code for v in report_before.violations]
         expected = list(record.get("expected_violations_before", []))
-        outcomes.append(TrajectoryOutcome(
-            case_id=record["id"],
-            violation_type=record.get("violation_type", "unknown"),
-            title=record.get("title", record["id"]),
-            before_detected_codes=detected,
-            expected_before=expected,
-            before_intercepted=set(expected).issubset(set(detected)),
-            after_clean=report_after.passed,
-            after_codes=[v.code for v in report_after.violations],
-        ))
+        outcomes.append(
+            TrajectoryOutcome(
+                case_id=record["id"],
+                violation_type=record.get("violation_type", "unknown"),
+                title=record.get("title", record["id"]),
+                before_detected_codes=detected,
+                expected_before=expected,
+                before_intercepted=set(expected).issubset(set(detected)),
+                after_clean=report_after.passed,
+                after_codes=[v.code for v in report_after.violations],
+            )
+        )
     return outcomes
 
 
@@ -257,20 +262,23 @@ def compute_metrics(
     # 轨迹级：重复写操作发生率（before 应接近 100%，after 应为 0%）
     dup = [o for o in traj_outcomes if o.violation_type == "duplicate_write"]
     metrics["METRIC_DUP_SIDE_EFFECT_RATE_BEFORE"] = _rate(
-        sum(1 for o in dup if "duplicate_side_effect" in o.before_detected_codes), len(dup))
+        sum(1 for o in dup if "duplicate_side_effect" in o.before_detected_codes), len(dup)
+    )
     metrics["METRIC_DUP_SIDE_EFFECT_RATE_AFTER"] = _rate(
-        sum(1 for o in dup if not o.after_clean), len(dup))
+        sum(1 for o in dup if not o.after_clean), len(dup)
+    )
 
     # 轨迹级：崩溃恢复成功率（after 轨迹零违规视为恢复成功）
     rec = [o for o in traj_outcomes if o.violation_type == "crash_recovery"]
     metrics["METRIC_RECOVERY_SUCCESS_BEFORE"] = _rate(
-        sum(1 for o in rec if not o.before_detected_codes), len(rec))
-    metrics["METRIC_RECOVERY_SUCCESS_AFTER"] = _rate(
-        sum(1 for o in rec if o.after_clean), len(rec))
+        sum(1 for o in rec if not o.before_detected_codes), len(rec)
+    )
+    metrics["METRIC_RECOVERY_SUCCESS_AFTER"] = _rate(sum(1 for o in rec if o.after_clean), len(rec))
 
     # 轨迹级：断言引擎自检——expected_violations_before 是否全部被检出
     metrics["METRIC_TRAJECTORY_DETECTION_RATE"] = _rate(
-        sum(1 for o in traj_outcomes if o.before_intercepted), len(traj_outcomes))
+        sum(1 for o in traj_outcomes if o.before_intercepted), len(traj_outcomes)
+    )
 
     return metrics
 
@@ -281,17 +289,21 @@ def render_markdown(
     metrics: dict[str, float],
 ) -> str:
     """渲染 before/after 指标对比报告（markdown）。"""
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     known_gaps = [o for o in case_outcomes if o.known_gap]
 
     lines: list[str] = []
     lines.append("# 落地叙事评测报告（before/after）")
     lines.append("")
     lines.append(f"- 生成时间：{now}")
-    lines.append(f"- 数据集：`demo_docs/badcases/safety_cases.json`（{len(case_outcomes)} 条用例级）"
-                 f" + `demo_docs/badcases/trajectory_cases.json`（{len(traj_outcomes)} 条轨迹级）")
+    lines.append(
+        f"- 数据集：`demo_docs/badcases/safety_cases.json`（{len(case_outcomes)} 条用例级）"
+        f" + `demo_docs/badcases/trajectory_cases.json`（{len(traj_outcomes)} 条轨迹级）"
+    )
     lines.append("- 评测器：`AgentSafetyEvaluator`（确定性断言，不依赖云模型）")
-    lines.append("- **before** = 关闭治理（PromptGuard 禁用 + 裸链路观测/轨迹）；**after** = 完整 Harness。")
+    lines.append(
+        "- **before** = 关闭治理（PromptGuard 禁用 + 裸链路观测/轨迹）；**after** = 完整 Harness。"
+    )
     lines.append("- 复现：`.venv/Scripts/python.exe scripts/run_landing_eval.py`")
     lines.append("")
 
@@ -303,16 +315,26 @@ def render_markdown(
         ("提示注入拦截率", "METRIC_INJECTION_INTERCEPT_BEFORE", "METRIC_INJECTION_INTERCEPT_AFTER"),
         ("越权检索拦截率", "METRIC_ACL_INTERCEPT_BEFORE", "METRIC_ACL_INTERCEPT_AFTER"),
         ("引用完整率", "METRIC_CITATION_COMPLETENESS_BEFORE", "METRIC_CITATION_COMPLETENESS_AFTER"),
-        ("无证据回答率（幻觉代理指标，越低越好）", "METRIC_UNGROUNDED_ANSWER_RATE_BEFORE", "METRIC_UNGROUNDED_ANSWER_RATE_AFTER"),
+        (
+            "无证据回答率（幻觉代理指标，越低越好）",
+            "METRIC_UNGROUNDED_ANSWER_RATE_BEFORE",
+            "METRIC_UNGROUNDED_ANSWER_RATE_AFTER",
+        ),
         ("写操作审批拦截率", "METRIC_APPROVAL_INTERCEPT_BEFORE", "METRIC_APPROVAL_INTERCEPT_AFTER"),
         ("循环/成本预算合规率", "METRIC_COST_GUARD_BEFORE", "METRIC_COST_GUARD_AFTER"),
-        ("重复副作用发生率（越低越好）", "METRIC_DUP_SIDE_EFFECT_RATE_BEFORE", "METRIC_DUP_SIDE_EFFECT_RATE_AFTER"),
+        (
+            "重复副作用发生率（越低越好）",
+            "METRIC_DUP_SIDE_EFFECT_RATE_BEFORE",
+            "METRIC_DUP_SIDE_EFFECT_RATE_AFTER",
+        ),
         ("崩溃恢复成功率", "METRIC_RECOVERY_SUCCESS_BEFORE", "METRIC_RECOVERY_SUCCESS_AFTER"),
     ]
     for label, key_b, key_a in rows:
         lines.append(f"| {label} | {metrics[key_b]}% | {metrics[key_a]}% |")
     lines.append("")
-    lines.append(f"轨迹断言引擎自检（expected violations 检出率）：{metrics['METRIC_TRAJECTORY_DETECTION_RATE']}%")
+    lines.append(
+        f"轨迹断言引擎自检（expected violations 检出率）：{metrics['METRIC_TRAJECTORY_DETECTION_RATE']}%"
+    )
     lines.append("")
 
     lines.append("## 用例级明细")
@@ -324,7 +346,9 @@ def render_markdown(
         gap_mark = "（已知缺口）" if o.known_gap else ""
         before_mark = "PASS" if o.before_passed else "FAIL"
         after_mark = "PASS" if o.after_passed else "FAIL"
-        lines.append(f"| {o.case_id}{gap_mark} | {label} | {before_mark} | {after_mark} | {o.before_reason or '-'} |")
+        lines.append(
+            f"| {o.case_id}{gap_mark} | {label} | {before_mark} | {after_mark} | {o.before_reason or '-'} |"
+        )
     lines.append("")
 
     lines.append("## 轨迹级明细")
@@ -337,7 +361,8 @@ def render_markdown(
         expected = ", ".join(o.expected_before) or "-"
         lines.append(
             f"| {o.case_id} | {label} | {detected} | {expected} | "
-            f"{'YES' if o.before_intercepted else 'NO'} | {'YES' if o.after_clean else 'NO'} |")
+            f"{'YES' if o.before_intercepted else 'NO'} | {'YES' if o.after_clean else 'NO'} |"
+        )
     lines.append("")
 
     if known_gaps:
@@ -396,7 +421,9 @@ def main(argv: list[str] | None = None) -> int:
     except (LandingEvalDataError, json.JSONDecodeError, OSError) as exc:
         print(f"[landing-eval] ERROR: {exc}", file=sys.stderr)
         return 2
-    print(f"[landing-eval] loaded {len(case_records)} case-level, {len(traj_records)} trajectory-level badcases")
+    print(
+        f"[landing-eval] loaded {len(case_records)} case-level, {len(traj_records)} trajectory-level badcases"
+    )
 
     case_outcomes = run_safety_cases(case_records)
     traj_outcomes = run_trajectory_cases(traj_records)

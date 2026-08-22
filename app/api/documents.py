@@ -3,6 +3,7 @@
 
 接收文件上传，创建入库任务，并按配置选择同步入库或 Celery 异步入库。
 """
+
 from __future__ import annotations
 
 import uuid
@@ -12,13 +13,13 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from app.api.dependencies import ServiceContainer, get_container
 from app.api.schemas import DocumentCreateResponse, IngestionStatusResponse
-from app.core.exceptions import NotFoundError, ValidationError
 from app.config import get_settings
+from app.core.exceptions import NotFoundError, ValidationError
 from app.schemas.enums import DocumentStatus
 from app.services.ingestion.dispatcher import IngestionDispatcher
 from app.services.ingestion.job import IngestionJobPayload
 from app.services.ingestion.pipeline import IngestionPipeline
-from app.services.ingestion.store import InMemoryIngestionTaskStore, IngestionTaskStore
+from app.services.ingestion.store import IngestionTaskStore, InMemoryIngestionTaskStore
 from app.services.ingestion.task import IngestionTask
 from app.services.ingestion.worker import run_ingestion_job
 from app.services.parser.markdown_parser import MarkdownParser
@@ -51,13 +52,14 @@ async def _persist_document_and_task(
     visibility: str,
 ) -> None:
     """full 模式：将文档元数据和入库任务持久化到 PostgreSQL。"""
-    from app.db.session import get_session_factory
     from app.db import crud as db
+    from app.db.session import get_session_factory
 
     factory = get_session_factory()
     async with factory() as session:
         # 保存文档元数据（Document 表由 ORM 基础设施管理，这里直接用 crud）
         from app.models.document import Document
+
         doc = Document(
             id=doc_id,
             title=filename,
@@ -84,8 +86,8 @@ async def _persist_document_and_task(
 
 async def _sync_persisted_task_snapshot(task: IngestionTask) -> None:
     """full 模式：将最新入库任务状态同步到 PostgreSQL 快照。"""
-    from app.db.session import get_session_factory
     from app.db import crud as db
+    from app.db.session import get_session_factory
 
     factory = get_session_factory()
     async with factory() as session:
@@ -112,6 +114,7 @@ def _build_pipeline(container: ServiceContainer | None = None) -> IngestionPipel
     registry.register(MarkdownParser())
     registry.register(PlainTextParser())
     from app.services.parser.office_parser import OfficeParser
+
     registry.register(OfficeParser())
     return IngestionPipeline(
         parser_registry=registry,
@@ -161,14 +164,20 @@ async def upload_document(
     visibility: str = Form(default="department", description="可见性"),
     container: ServiceContainer = Depends(get_container),
 ) -> DocumentCreateResponse:
+    settings = get_settings()
+    if settings.app_mode == "full":
+        from app.services.security.oidc import current_tenant_id
+
+        if tenant_id != current_tenant_id():
+            from app.core.exceptions import PermissionError
+
+            raise PermissionError("Document tenant does not match authenticated tenant")
     # 检测文件类型
     filename = file.filename or "unknown.txt"
     mime_type = IngestionPipeline.detect_mime_type(filename)
 
     if mime_type is None:
-        raise ValidationError(
-            f"不支持的文件类型: {filename}。当前支持: {_SUPPORTED_UPLOAD_TEXT}"
-        )
+        raise ValidationError(f"不支持的文件类型: {filename}。当前支持: {_SUPPORTED_UPLOAD_TEXT}")
 
     # 读取文件内容
     content = await file.read()
@@ -188,7 +197,6 @@ async def upload_document(
     )
 
     # full 模式：持久化文档和任务到 PostgreSQL
-    settings = get_settings()
     if settings.app_mode == "full":
         await _persist_document_and_task(
             doc_id=doc_id,
@@ -242,8 +250,8 @@ async def get_ingestion_status(
 
     # full 模式：优先从 PostgreSQL 读
     if settings.app_mode == "full":
-        from app.db.session import get_session_factory
         from app.db import crud as db
+        from app.db.session import get_session_factory
 
         factory = get_session_factory()
         async with factory() as session:

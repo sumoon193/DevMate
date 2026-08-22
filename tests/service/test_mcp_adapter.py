@@ -3,6 +3,7 @@ MCP 风格本地 adapter 测试。
 
 确保 MCP 工具发现、schema 校验、调用、审批仍经过 Harness 治理。
 """
+
 from __future__ import annotations
 
 import pytest
@@ -64,7 +65,7 @@ def test_fake_mcp_server_discovers_tool_schemas(
 
     assert [tool.name for tool in tools] == [
         "list_hr_policy_documents",
-        "create_mock_hr_ticket",
+        "create_hr_ticket",
         "summarize_agent_run_artifacts",
     ]
     assert tools[1].requires_approval is True
@@ -81,12 +82,12 @@ async def test_schema_mismatch_is_rejected_before_server_call(
     with pytest.raises(ValidationError):
         await adapter.call(
             run_id="run_mcp_001",
-            tool_name="create_mock_hr_ticket",
+            tool_name="create_hr_ticket",
             parameters={"title": 123, "description": "入职"},
             user_context=user_context,
         )
 
-    assert server.call_count("create_mock_hr_ticket") == 0
+    assert server.call_count("create_hr_ticket") == 0
 
 
 @pytest.mark.asyncio
@@ -99,14 +100,14 @@ async def test_write_tool_is_blocked_by_approval_gate(
 
     tool_call = await adapter.call(
         run_id="run_mcp_002",
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         parameters={"title": "入职工单", "description": "新员工入职"},
         user_context=user_context,
     )
 
     assert tool_call.status == ToolCallStatus.PENDING
     assert tool_call.approval_required is True
-    assert server.call_count("create_mock_hr_ticket") == 0
+    assert server.call_count("create_hr_ticket") == 0
     assert len(approval_manager.get_pending_requests("run_mcp_002")) == 1
 
 
@@ -119,7 +120,7 @@ async def test_approved_write_tool_calls_fake_server_once(
     server, adapter, bridge, approval_manager = mcp_stack
     pending_call = await adapter.call(
         run_id="run_mcp_003",
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         parameters={"title": "入职工单", "description": "新员工入职"},
         user_context=user_context,
     )
@@ -136,7 +137,7 @@ async def test_approved_write_tool_calls_fake_server_once(
     assert executed.status == ToolCallStatus.COMPLETED
     assert executed.result is not None
     assert executed.result["ticket_id"].startswith("MCP-TK-")
-    assert server.call_count("create_mock_hr_ticket") == 1
+    assert server.call_count("create_hr_ticket") == 1
 
 
 @pytest.mark.asyncio

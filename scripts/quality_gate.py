@@ -7,11 +7,12 @@
     python scripts/quality_gate.py          # 快速检查（unit + service + api）
     python scripts/quality_gate.py --full   # 完整检查（含覆盖率报告）
 """
+
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
-import re
 import uuid
 from pathlib import Path
 
@@ -21,9 +22,9 @@ PYCACHE_PREFIX = PROJECT_ROOT / f".quality-pycache-{uuid.uuid4().hex[:8]}"
 
 def run(cmd: list[str], label: str) -> tuple[bool, str]:
     """运行命令，返回 (是否成功, 输出)。"""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {label}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     result = subprocess.run(
         cmd,
@@ -35,7 +36,7 @@ def run(cmd: list[str], label: str) -> tuple[bool, str]:
 
     output = result.stdout + result.stderr
     if result.returncode == 0:
-        print(f"  ✅ 通过")
+        print("  ✅ 通过")
         # 打印关键行
         for line in output.strip().split("\n")[-5:]:
             print(f"  {line}")
@@ -60,8 +61,12 @@ def check_tests_with_coverage() -> bool:
     """检查 1b：带覆盖率的测试。"""
     ok, output = run(
         [
-            sys.executable, "-m", "pytest",
-            "-q", "-p", "no:cacheprovider",
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
             "--cov=app",
             "--cov-report=term-missing",
             "--cov-fail-under=70",
@@ -75,9 +80,15 @@ def check_unit_marker() -> bool:
     """检查 2：unit marker 可用。"""
     ok, _ = run(
         [
-            sys.executable, "-m", "pytest",
-            "-q", "-p", "no:cacheprovider",
-            "-m", "unit", "--co",
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-m",
+            "unit",
+            "--co",
         ],
         "检查 2：unit marker 可用",
     )
@@ -88,9 +99,15 @@ def check_service_marker() -> bool:
     """检查 3：service marker 可用。"""
     ok, _ = run(
         [
-            sys.executable, "-m", "pytest",
-            "-q", "-p", "no:cacheprovider",
-            "-m", "service", "--co",
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-m",
+            "service",
+            "--co",
         ],
         "检查 3：service marker 可用",
     )
@@ -101,9 +118,15 @@ def check_api_marker() -> bool:
     """检查 4：api marker 可用。"""
     ok, _ = run(
         [
-            sys.executable, "-m", "pytest",
-            "-q", "-p", "no:cacheprovider",
-            "-m", "api", "--co",
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-m",
+            "api",
+            "--co",
         ],
         "检查 4：api marker 可用",
     )
@@ -112,9 +135,9 @@ def check_api_marker() -> bool:
 
 def check_no_print_statements() -> bool:
     """检查 5：app/ 目录下没有 print 语句（只允许 logging）。"""
-    print(f"\n{'='*60}")
-    print(f"  检查 5：禁止 print 语句")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("  检查 5：禁止 print 语句")
+    print(f"{'=' * 60}")
 
     app_dir = PROJECT_ROOT / "app"
     violations: list[str] = []
@@ -137,15 +160,15 @@ def check_no_print_statements() -> bool:
             print(f"  {v}")
         return False
 
-    print(f"  ✅ 通过：无 print 语句")
+    print("  ✅ 通过：无 print 语句")
     return True
 
 
 def check_env_not_tracked() -> bool:
     """检查 6：.env 不在 git 跟踪中。"""
-    print(f"\n{'='*60}")
-    print(f"  检查 6：.env 不在 git 中")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("  检查 6：.env 不在 git 中")
+    print(f"{'=' * 60}")
 
     result = subprocess.run(
         ["git", "ls-files", ".env"],
@@ -158,7 +181,7 @@ def check_env_not_tracked() -> bool:
         print(f"  ❌ .env 被 git 跟踪：{result.stdout.strip()}")
         return False
 
-    print(f"  ✅ 通过：.env 未被 git 跟踪")
+    print("  ✅ 通过：.env 未被 git 跟踪")
     return True
 
 
@@ -202,9 +225,9 @@ def main() -> None:
     results[".env 安全"] = check_env_not_tracked()
 
     # ── 汇总 ──
-    print(f"\n{'='*60}")
-    print(f"  汇总报告")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("  汇总报告")
+    print(f"{'=' * 60}")
 
     all_pass = True
     for check_name, passed in results.items():
@@ -213,12 +236,12 @@ def main() -> None:
         if not passed:
             all_pass = False
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     if all_pass:
         print("  🎉 全部质量门禁通过！")
     else:
         print("  ⚠️  存在未通过的检查项，请修复后再提交。")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     sys.exit(0 if all_pass else 1)
 

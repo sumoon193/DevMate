@@ -8,6 +8,7 @@ Observability 测试。
 4. test_sensitive_fields_are_redacted
 5. test_observability_failure_does_not_fail_request
 """
+
 from __future__ import annotations
 
 import pytest
@@ -30,11 +31,7 @@ class TestTraceCreation:
     def test_trace_id_created_for_agent_run(self, tracer: Tracer):
         """测试 1：为 Agent Run 创建 trace_id。"""
         # 开始 Trace
-        context = tracer.start_trace(
-            run_id="run_001",
-            user_id="user_001",
-            tenant_id="tenant_hr"
-        )
+        context = tracer.start_trace(run_id="run_001", user_id="user_001", tenant_id="tenant_hr")
 
         # 验证 trace_id
         assert context.trace_id is not None
@@ -79,9 +76,7 @@ class TestSpanRecording:
 
         # 开始检索 Span
         span = tracer.start_span(
-            context=context,
-            span_type=SpanType.RETRIEVAL_SEARCH,
-            name="hybrid_search"
+            context=context, span_type=SpanType.RETRIEVAL_SEARCH, name="hybrid_search"
         )
 
         # 设置属性
@@ -107,8 +102,8 @@ class TestSpanRecording:
         span = tracer.start_span(
             context=context,
             span_type=SpanType.TOOL_CALL,
-            name="create_mock_hr_ticket",
-            attributes={"tool_name": "create_mock_hr_ticket"}
+            name="create_hr_ticket",
+            attributes={"tool_name": "create_hr_ticket"},
         )
 
         # 设置 approval_id
@@ -127,17 +122,12 @@ class TestSpanRecording:
 
         # 创建根 Span
         root_span = tracer.start_span(
-            context=context,
-            span_type=SpanType.AGENT_RUN,
-            name="agent_run"
+            context=context, span_type=SpanType.AGENT_RUN, name="agent_run"
         )
 
         # 创建子 Span
         child_span = tracer.start_span(
-            context=context,
-            span_type=SpanType.RETRIEVAL_SEARCH,
-            name="retrieval",
-            parent=root_span
+            context=context, span_type=SpanType.RETRIEVAL_SEARCH, name="retrieval", parent=root_span
         )
 
         # 验证父子关系
@@ -158,17 +148,16 @@ class TestSensitiveFieldRedaction:
 
         # 创建带有敏感字段的 Span
         span = Span(
-            span_id="span_001",
-            trace_id="trace_001",
-            span_type=SpanType.LLM_CALL,
-            name="llm_call"
+            span_id="span_001", trace_id="trace_001", span_type=SpanType.LLM_CALL, name="llm_call"
         )
-        span.set_attributes({
-            "api_key": "sk-1234567890",
-            "password": "secret123",
-            "authorization": "Bearer token123",
-            "query": "普通查询"
-        })
+        span.set_attributes(
+            {
+                "api_key": "sk-1234567890",
+                "password": "secret123",
+                "authorization": "Bearer token123",
+                "query": "普通查询",
+            }
+        )
 
         # 脱敏
         sanitized = exporter._sanitize_attributes(span.attributes)
@@ -185,11 +174,7 @@ class TestSensitiveFieldRedaction:
         context = tracer.start_trace("run_001", "user_001", "tenant_hr")
 
         # 创建带有敏感字段的 Span
-        span = tracer.start_span(
-            context=context,
-            span_type=SpanType.LLM_CALL,
-            name="llm_call"
-        )
+        span = tracer.start_span(context=context, span_type=SpanType.LLM_CALL, name="llm_call")
         span.set_attribute("api_key", "sk-1234567890")
 
         # 结束 Span
@@ -208,11 +193,7 @@ class TestObservabilityFailure:
         context = tracer.start_trace("run_001", "user_001", "tenant_hr")
 
         # 创建 Span
-        span = tracer.start_span(
-            context=context,
-            span_type=SpanType.AGENT_RUN,
-            name="agent_run"
-        )
+        tracer.start_span(context=context, span_type=SpanType.AGENT_RUN, name="agent_run")
 
         # 模拟导出失败
         class FailingExporter:
@@ -233,11 +214,7 @@ class TestObservabilityFailure:
         tracer = Tracer()  # 没有导出器
 
         context = tracer.start_trace("run_001", "user_001", "tenant_hr")
-        span = tracer.start_span(
-            context=context,
-            span_type=SpanType.AGENT_RUN,
-            name="agent_run"
-        )
+        span = tracer.start_span(context=context, span_type=SpanType.AGENT_RUN, name="agent_run")
         tracer.end_span(span, SpanStatus.OK)
 
         # 导出不应该抛出异常
@@ -250,10 +227,7 @@ class TestSpanEvents:
     def test_span_add_event(self):
         """测试添加 Span 事件。"""
         span = Span(
-            span_id="span_001",
-            trace_id="trace_001",
-            span_type=SpanType.AGENT_RUN,
-            name="agent_run"
+            span_id="span_001", trace_id="trace_001", span_type=SpanType.AGENT_RUN, name="agent_run"
         )
 
         # 添加事件
@@ -266,10 +240,7 @@ class TestSpanEvents:
     def test_span_record_error(self):
         """测试记录 Span 错误。"""
         span = Span(
-            span_id="span_001",
-            trace_id="trace_001",
-            span_type=SpanType.TOOL_CALL,
-            name="tool_call"
+            span_id="span_001", trace_id="trace_001", span_type=SpanType.TOOL_CALL, name="tool_call"
         )
 
         # 记录错误
@@ -302,11 +273,7 @@ class TestTraceContext:
         """测试获取 Span。"""
         context = tracer.start_trace("run_001", "user_001", "tenant_hr")
 
-        span = tracer.start_span(
-            context=context,
-            span_type=SpanType.AGENT_RUN,
-            name="agent_run"
-        )
+        span = tracer.start_span(context=context, span_type=SpanType.AGENT_RUN, name="agent_run")
 
         # 获取存在的 Span
         found = context.get_span(span.span_id)

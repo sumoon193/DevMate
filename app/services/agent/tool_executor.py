@@ -3,6 +3,7 @@ Tool Executor。
 
 执行工具，带权限检查和审批流程。
 """
+
 from __future__ import annotations
 
 import logging
@@ -16,9 +17,9 @@ from app.schemas.user import UserContext
 from app.services.agent.approval_manager import ApprovalManager
 from app.services.agent.step_logger import StepLogger
 from app.services.agent.tool_registry import ToolRegistry
-from app.services.security.acl_validator import ACLValidator
 from app.services.runtime.interfaces import SideEffectLedger
 from app.services.runtime.side_effects import InMemorySideEffectLedger
+from app.services.security.acl_validator import ACLValidator
 
 logger = logging.getLogger(__name__)
 
@@ -79,10 +80,7 @@ class ToolExecutor:
         Raises:
             NotFoundError: 工具不存在
         """
-        logger.info(
-            "executing_tool",
-            extra={"run_id": run_id, "tool_name": tool_name}
-        )
+        logger.info("executing_tool", extra={"run_id": run_id, "tool_name": tool_name})
 
         # 获取工具定义和处理器
         tool = self._registry.get_tool(tool_name)
@@ -101,7 +99,7 @@ class ToolExecutor:
                 parameters=parameters,
                 result=None,
                 status=ToolCallStatus.PENDING,
-                approval_required=True
+                approval_required=True,
             )
 
             # 创建审批请求
@@ -125,8 +123,8 @@ class ToolExecutor:
                 output_data={
                     "tool_call_id": tool_call_id,
                     "approval_request_id": approval_request.id,
-                    "requires_approval": True
-                }
+                    "requires_approval": True,
+                },
             )
 
             logger.info(
@@ -134,8 +132,8 @@ class ToolExecutor:
                 extra={
                     "run_id": run_id,
                     "tool_name": tool_name,
-                    "approval_request_id": approval_request.id
-                }
+                    "approval_request_id": approval_request.id,
+                },
             )
 
             return tool_call
@@ -152,7 +150,7 @@ class ToolExecutor:
                 parameters=parameters,
                 result=result,
                 status=ToolCallStatus.COMPLETED,
-                approval_required=False
+                approval_required=False,
             )
 
             # 记录步骤
@@ -160,12 +158,12 @@ class ToolExecutor:
                 run_id=run_id,
                 node_name="tool_executed",
                 input_data={"tool_name": tool_name, "parameters": parameters},
-                output_data={"result": result, "tool_call_id": tool_call_id}
+                output_data={"result": result, "tool_call_id": tool_call_id},
             )
 
             logger.info(
                 "tool_executed_successfully",
-                extra={"run_id": run_id, "tool_name": tool_name, "tool_call_id": tool_call_id}
+                extra={"run_id": run_id, "tool_name": tool_name, "tool_call_id": tool_call_id},
             )
 
             return tool_call
@@ -179,7 +177,7 @@ class ToolExecutor:
                 parameters=parameters,
                 result={"error": str(e)},
                 status=ToolCallStatus.FAILED,
-                approval_required=False
+                approval_required=False,
             )
 
             # 记录步骤
@@ -187,22 +185,18 @@ class ToolExecutor:
                 run_id=run_id,
                 node_name="tool_execution_failed",
                 input_data={"tool_name": tool_name, "parameters": parameters},
-                output_data={"error": str(e), "tool_call_id": tool_call_id}
+                output_data={"error": str(e), "tool_call_id": tool_call_id},
             )
 
             logger.error(
                 "tool_execution_failed",
-                extra={"run_id": run_id, "tool_name": tool_name, "error": str(e)}
+                extra={"run_id": run_id, "tool_name": tool_name, "error": str(e)},
             )
 
             return tool_call
 
     async def execute_after_approval(
-        self,
-        run_id: str,
-        tool_call_id: str,
-        approval_id: str,
-        user_context: UserContext
+        self, run_id: str, tool_call_id: str, approval_id: str, user_context: UserContext
     ) -> ToolCall:
         """
         审批后执行工具。
@@ -218,7 +212,7 @@ class ToolExecutor:
         """
         logger.info(
             "executing_tool_after_approval",
-            extra={"run_id": run_id, "tool_call_id": tool_call_id, "approval_id": approval_id}
+            extra={"run_id": run_id, "tool_call_id": tool_call_id, "approval_id": approval_id},
         )
 
         # 获取审批请求
@@ -277,7 +271,7 @@ class ToolExecutor:
                 parameters=parameters,
                 result=result,
                 status=ToolCallStatus.COMPLETED,
-                approval_required=True
+                approval_required=True,
             )
 
             # 记录步骤
@@ -287,14 +281,14 @@ class ToolExecutor:
                 input_data={
                     "tool_name": approval_request.tool_name,
                     "parameters": parameters,
-                    "approval_id": approval_id
+                    "approval_id": approval_id,
                 },
-                output_data={"result": result, "tool_call_id": tool_call_id}
+                output_data={"result": result, "tool_call_id": tool_call_id},
             )
 
             logger.info(
                 "tool_executed_after_approval",
-                extra={"run_id": run_id, "tool_name": approval_request.tool_name}
+                extra={"run_id": run_id, "tool_name": approval_request.tool_name},
             )
 
             return tool_call
@@ -309,22 +303,17 @@ class ToolExecutor:
                 parameters=parameters,
                 result={"error": str(e)},
                 status=ToolCallStatus.FAILED,
-                approval_required=True
+                approval_required=True,
             )
 
             logger.error(
-                "tool_execution_after_approval_failed",
-                extra={"run_id": run_id, "error": str(e)}
+                "tool_execution_after_approval_failed", extra={"run_id": run_id, "error": str(e)}
             )
 
             return tool_call
 
     def _ensure_tool_permission(
-        self,
-        run_id: str,
-        tool_name: str,
-        permission_scope: str,
-        user_context: UserContext
+        self, run_id: str, tool_name: str, permission_scope: str, user_context: UserContext
     ) -> None:
         """校验用户是否具备工具所需权限。"""
         tool = self._registry.get_tool(tool_name)
@@ -337,9 +326,9 @@ class ToolExecutor:
             input_data={
                 "tool_name": tool_name,
                 "user_id": user_context.user_id,
-                "required_scope": permission_scope
+                "required_scope": permission_scope,
             },
-            output_data={"allowed": False}
+            output_data={"allowed": False},
         )
         raise AppPermissionError(
             f"User {user_context.user_id} lacks permission {permission_scope} for tool {tool_name}"

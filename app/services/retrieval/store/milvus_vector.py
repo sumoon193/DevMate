@@ -3,6 +3,7 @@ Milvus 向量存储适配器。
 
 实现 VectorStore 协议，替代 InMemoryVectorStore。
 """
+
 from __future__ import annotations
 
 import json
@@ -13,6 +14,7 @@ from pymilvus import DataType, MilvusClient
 from app.schemas.chunk import ChunkCreate
 from app.schemas.enums import Visibility
 from app.schemas.retrieval import RetrievalResult
+from app.services.ingestion.identity import stable_chunk_id
 from app.services.retrieval.store.base import ACLFilter
 
 logger = logging.getLogger(__name__)
@@ -77,7 +79,10 @@ class MilvusVectorStore:
             index_params=index_params,
         )
         self._client.load_collection(COLLECTION_NAME)
-        logger.info("milvus_collection_created", extra={"name": COLLECTION_NAME})
+        logger.info(
+            "milvus_collection_created",
+            extra={"collection_name": COLLECTION_NAME},
+        )
 
     async def add_chunks(
         self,
@@ -89,18 +94,33 @@ class MilvusVectorStore:
 
         records: list[dict[str, object]] = []
         for i, chunk in enumerate(chunks):
+            stored_chunk = chunk
+            if not chunk.id:
+                stored_chunk = chunk.model_copy(
+                    update={
+                        "id": stable_chunk_id(
+                            document_id=chunk.document_id,
+                            document_version=chunk.document_version,
+                            heading_path=chunk.heading_path,
+                            ordinal=i + 1,
+                            chunk_text=chunk.chunk_text,
+                        )
+                    }
+                )
             records.append(
                 {
-                    "chunk_id": chunk.id,
-                    "document_id": chunk.document_id,
-                    "document_version": chunk.document_version,
-                    "tenant_id": chunk.tenant_id,
-                    "department_id": chunk.department_id,
-                    "visibility": chunk.visibility.value if hasattr(chunk.visibility, "value") else str(chunk.visibility),
-                    "chunk_text": chunk.chunk_text[:8192],
-                    "context_prefix": (chunk.context_prefix or "")[:2048],
-                    "heading_path": (chunk.heading_path or "")[:512],
-                    "page": chunk.page_numbers[0] if chunk.page_numbers else 0,
+                    "chunk_id": stored_chunk.id,
+                    "document_id": stored_chunk.document_id,
+                    "document_version": stored_chunk.document_version,
+                    "tenant_id": stored_chunk.tenant_id,
+                    "department_id": stored_chunk.department_id,
+                    "visibility": stored_chunk.visibility.value
+                    if hasattr(stored_chunk.visibility, "value")
+                    else str(stored_chunk.visibility),
+                    "chunk_text": stored_chunk.chunk_text[:8192],
+                    "context_prefix": (stored_chunk.context_prefix or "")[:2048],
+                    "heading_path": (stored_chunk.heading_path or "")[:512],
+                    "page": stored_chunk.page_numbers[0] if stored_chunk.page_numbers else 0,
                     "embedding": embeddings[i],
                 }
             )
@@ -127,8 +147,16 @@ class MilvusVectorStore:
             limit=search_limit,
             filter=expr,
             output_fields=[
-                "chunk_id", "document_id", "document_version", "tenant_id", "department_id",
-                "visibility", "chunk_text", "context_prefix", "heading_path", "page",
+                "chunk_id",
+                "document_id",
+                "document_version",
+                "tenant_id",
+                "department_id",
+                "visibility",
+                "chunk_text",
+                "context_prefix",
+                "heading_path",
+                "page",
             ],
         )
 
@@ -147,31 +175,35 @@ class MilvusVectorStore:
             vis_enum = Visibility(vis) if vis else Visibility.DEPARTMENT
             if vis_enum not in acl_filter.allowed_visibility:
                 continue
-            if vis_enum != Visibility.PUBLIC:
-                if entity.get("department_id") not in acl_filter.department_ids:
-                    continue
+            if (
+                vis_enum != Visibility.PUBLIC
+                and entity.get("department_id") not in acl_filter.department_ids
+            ):
+                continue
 
             # pymilvus 3.0 COSINE: distance = cosine_similarity（越大越相似）
             score = distance if distance is not None else 0.0
             score = max(0.0, min(score, 1.0))
 
-            output.append(RetrievalResult(
-                chunk_id=entity.get("chunk_id", ""),
-                document_id=entity.get("document_id", ""),
-                document_version=entity.get("document_version", "v1"),
-                chunk_text=entity.get("chunk_text", ""),
-                context_prefix=entity.get("context_prefix", ""),
-                score=score,
-                rerank_score=0.0,
-                raw_score=score,
-                document_name="",
-                section="",
-                page=entity.get("page", 0),
-                heading_path=entity.get("heading_path", ""),
-                tenant_id=entity.get("tenant_id", ""),
-                department_id=entity.get("department_id", ""),
-                visibility=vis_enum,
-            ))
+            output.append(
+                RetrievalResult(
+                    chunk_id=entity.get("chunk_id", ""),
+                    document_id=entity.get("document_id", ""),
+                    document_version=entity.get("document_version", "v1"),
+                    chunk_text=entity.get("chunk_text", ""),
+                    context_prefix=entity.get("context_prefix", ""),
+                    score=score,
+                    rerank_score=0.0,
+                    raw_score=score,
+                    document_name="",
+                    section="",
+                    page=entity.get("page", 0),
+                    heading_path=entity.get("heading_path", ""),
+                    tenant_id=entity.get("tenant_id", ""),
+                    department_id=entity.get("department_id", ""),
+                    visibility=vis_enum,
+                )
+            )
             if len(output) >= top_k:
                 break
 
@@ -199,7 +231,9 @@ class MilvusVectorStore:
         if acl_filter.department_ids:
             department_expr = (
                 "department_id in ["
-                + ", ".join(self._quote_expr_value(dept_id) for dept_id in acl_filter.department_ids)
+                + ", ".join(
+                    self._quote_expr_value(dept_id) for dept_id in acl_filter.department_ids
+                )
                 + "]"
             )
             access_expr = f"({public_expr} or {department_expr})"

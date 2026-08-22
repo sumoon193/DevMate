@@ -9,10 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from app.devmate.sandbox import (
-    CheckpointPort,
     DM09Input,
     DM09Result,
     IsolatedSandbox,
@@ -69,9 +66,7 @@ def test_undeclared_command_is_rejected() -> None:
 def test_resource_limit_is_enforced() -> None:
     result = IsolatedSandbox().execute(
         _input(
-            commands=(
-                SandboxCommand(command="heavy", cost_cpu=10.0, cost_memory=8),
-            ),
+            commands=(SandboxCommand(command="heavy", cost_cpu=10.0, cost_memory=8),),
             cpu_limit=1.0,
         )
     )
@@ -84,9 +79,7 @@ def test_resource_limit_is_enforced() -> None:
 def test_memory_limit_is_enforced() -> None:
     result = IsolatedSandbox().execute(
         _input(
-            commands=(
-                SandboxCommand(command="big", cost_cpu=0.1, cost_memory=500),
-            ),
+            commands=(SandboxCommand(command="big", cost_cpu=0.1, cost_memory=500),),
             memory_limit=64,
         )
     )

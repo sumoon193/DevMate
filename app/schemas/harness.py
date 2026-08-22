@@ -1,9 +1,10 @@
 """
 Agent Harness 深化能力 Schema。
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -60,7 +61,7 @@ class LoopEvent(BaseModel):
     )
     metadata: dict[str, Any] = Field(default_factory=dict, description="扩展元数据")
     created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
+        default_factory=lambda: datetime.now(UTC),
         description="创建时间",
     )
 

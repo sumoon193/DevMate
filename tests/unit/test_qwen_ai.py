@@ -1,12 +1,13 @@
 """Qwen 真实 AI adapter 的无网络单元测试。"""
+
 from __future__ import annotations
 
 from typing import Any
 
 import pytest
 
-from app.core.exceptions import ExternalServiceError
 from app.config import Settings
+from app.core.exceptions import ExternalServiceError
 from app.schemas.enums import Visibility
 from app.schemas.retrieval import RetrievalResult
 

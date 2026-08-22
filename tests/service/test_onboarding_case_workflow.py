@@ -1,7 +1,8 @@
 """入职到转正 Reference Application 的 Case 工作流测试。"""
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -34,7 +35,7 @@ def _manifest() -> ExecutionManifest:
         model_version="1",
         prompt_version="answer-v1",
         skill_versions={"hr_onboarding": "1.0.0"},
-        tool_schema_versions={"create_mock_hr_ticket": "1"},
+        tool_schema_versions={"create_hr_ticket": "1"},
         policy_version="hr-policy-2026-01",
         retrieval_version="hybrid-v1",
         context_strategy_version="context-v1",
@@ -88,7 +89,7 @@ def _workflow(
         version="1.0.0",
         content="先研究制度，再生成计划，写操作必须审批。",
         source_uri="repo://skills/hr_onboarding/1.0.0",
-        allowed_tools=["create_mock_hr_ticket"],
+        allowed_tools=["create_hr_ticket"],
         required_permissions=["hr.document.read", "hr.ticket.write"],
     )
     skills.activate(draft.id, eval_score=0.98)
@@ -112,7 +113,7 @@ def _workflow(
 @pytest.mark.asyncio
 async def test_onboarding_case_waits_for_bound_approval_before_write() -> None:
     """标准 Case 应先形成证据和计划，再在写工具前暂停。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     workflow, cases, events, approvals, fake_mcp = _workflow(clock=clock)
     case = await cases.create_case(
         title="新员工入职到转正",
@@ -139,7 +140,7 @@ async def test_onboarding_case_waits_for_bound_approval_before_write() -> None:
     assert approval.policy_version == "hr-policy-2026-01"
     assert approval.execution_manifest_hash
     assert approval.evidence[0]["document_version"] == "v1"
-    assert fake_mcp.call_count("create_mock_hr_ticket") == 0
+    assert fake_mcp.call_count("create_hr_ticket") == 0
     assert [event.event_type for event in await events.load_stream(case.id)] == [
         "case.created",
         "run.started",
@@ -156,7 +157,7 @@ async def test_onboarding_case_waits_for_bound_approval_before_write() -> None:
 @pytest.mark.asyncio
 async def test_approved_case_executes_once_and_schedules_probation_timer() -> None:
     """跨天审批恢复只能创建一次工单，并持久调度转正提醒。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     workflow, cases, _, _, fake_mcp = _workflow(clock=clock)
     case = await cases.create_case(
         title="新员工入职到转正",
@@ -198,13 +199,13 @@ async def test_approved_case_executes_once_and_schedules_probation_timer() -> No
     assert resumed.working_memory["tool_results"][-1]["status"] == ToolCallStatus.COMPLETED
     assert resumed.working_memory["memories"][-1]["memory_key"] == "onboarding.ticket_created"
     assert resumed.working_memory["timers"][-1]["timer_type"] == "probation.review_due"
-    assert fake_mcp.call_count("create_mock_hr_ticket") == 1
+    assert fake_mcp.call_count("create_hr_ticket") == 1
 
 
 @pytest.mark.asyncio
 async def test_approval_rehydrates_from_event_store_after_service_restart() -> None:
     """第二天审批时应从持久事件恢复完整授权对象并继续执行。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     workflow, cases, events, _, _ = _workflow(clock=clock)
     case = await cases.create_case(
         title="新员工入职到转正",
@@ -239,13 +240,13 @@ async def test_approval_rehydrates_from_event_store_after_service_restart() -> N
     restored = restarted_approvals.get_request(approval_id)
     assert restored.evidence[0]["document_version"] == "v1"
     assert resumed.status == CaseStatus.WAITING_TIMER
-    assert restarted_mcp.call_count("create_mock_hr_ticket") == 1
+    assert restarted_mcp.call_count("create_hr_ticket") == 1
 
 
 @pytest.mark.asyncio
 async def test_approval_command_resumes_after_decision_event_crash() -> None:
     """审批事件落库后进程崩溃，重试应补齐工具、记忆与 timer。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     workflow, cases, events, approvals, _ = _workflow(clock=clock)
     case = await cases.create_case(
         title="新员工入职到转正",
@@ -293,8 +294,10 @@ async def test_approval_command_resumes_after_decision_event_crash() -> None:
 
     stream = await events.load_stream(case.id)
     assert resumed.status == CaseStatus.WAITING_TIMER
-    assert restarted_mcp.call_count("create_mock_hr_ticket") == 1
-    assert len([event for event in stream if event.command_id == "cmd_crash_recovery:approval"]) == 1
+    assert restarted_mcp.call_count("create_hr_ticket") == 1
+    assert (
+        len([event for event in stream if event.command_id == "cmd_crash_recovery:approval"]) == 1
+    )
     assert len([event for event in stream if event.command_id == "cmd_crash_recovery:tool"]) == 1
     assert len([event for event in stream if event.command_id == "cmd_crash_recovery:memory"]) == 1
     assert len([event for event in stream if event.command_id == "cmd_crash_recovery:timer"]) == 1
@@ -303,7 +306,7 @@ async def test_approval_command_resumes_after_decision_event_crash() -> None:
 @pytest.mark.asyncio
 async def test_policy_update_refreshes_evidence_revises_plan_and_requests_new_approval() -> None:
     """制度更新应使旧证据失效，并通过只读 A2A 产生新计划和审批。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     workflow, cases, events, approvals, _ = _workflow(clock=clock)
     case = await cases.create_case(
         title="新员工入职到转正",
@@ -353,7 +356,7 @@ async def test_policy_update_refreshes_evidence_revises_plan_and_requests_new_ap
 @pytest.mark.asyncio
 async def test_workflow_resumes_missing_steps_after_partial_command_crash() -> None:
     """首个事件已提交后重试同一命令，应继续而不是冲突或提前返回。"""
-    clock = FakeClock(datetime(2026, 7, 13, tzinfo=timezone.utc))
+    clock = FakeClock(datetime(2026, 7, 13, tzinfo=UTC))
     workflow, cases, events, _, _ = _workflow(clock=clock)
     case = await cases.create_case(
         title="新员工入职到转正",

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Protocol
 
 from app.devmate.runtime.event_store import ConcurrentVersionError, EventStore
 from app.devmate.runtime.models import (
@@ -52,8 +52,7 @@ class TransactionalCheckpoint:
         stream = self.store.load_stream(input_.aggregate_id)
         if len(stream) != input_.expected_version:
             raise ConcurrentVersionError(
-                f"expected version {input_.expected_version}, "
-                f"current {len(stream)}"
+                f"expected version {input_.expected_version}, current {len(stream)}"
             )
 
         now = self.clock.now()

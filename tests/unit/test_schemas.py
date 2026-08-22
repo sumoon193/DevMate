@@ -8,20 +8,21 @@ Schema 测试。
 4. test_document_chunk_contains_acl_metadata
 5. test_schema_roundtrip_between_api_and_db_shape
 """
+
 from __future__ import annotations
 
-import pytest
 from datetime import datetime
+
+import pytest
 from pydantic import ValidationError
 
-from app.schemas.enums import RunStatus, DocumentStatus, ToolRiskLevel, Visibility
-from app.schemas.user import UserContext
-from app.schemas.document import DocumentCreate, DocumentResponse
+from app.schemas.agent import AgentRunResponse
+from app.schemas.approval import ApprovalDecision, ApprovalRequest
 from app.schemas.chunk import Citation, DocumentChunk, EvidenceBundle
-from app.schemas.agent import AgentRunCreate, AgentRunResponse, AgentStep
-from app.schemas.tool import ToolDefinition, ToolCall
-from app.schemas.approval import ApprovalRequest, ApprovalDecision
-from app.schemas.eval import EvalCase, EvalRun
+from app.schemas.document import DocumentResponse
+from app.schemas.enums import DocumentStatus, RunStatus, ToolRiskLevel, Visibility
+from app.schemas.tool import ToolDefinition
+from app.schemas.user import UserContext
 
 
 class TestRunStatusStability:
@@ -63,7 +64,9 @@ class TestRunStatusStability:
         for value, status in expected_statuses.items():
             assert status.value == value, f"DocumentStatus.{status.name}.value should be '{value}'"
 
-        assert len(DocumentStatus) == 7, f"Expected 7 DocumentStatus values, got {len(DocumentStatus)}"
+        assert len(DocumentStatus) == 7, (
+            f"Expected 7 DocumentStatus values, got {len(DocumentStatus)}"
+        )
 
     def test_tool_risk_level_values_are_stable(self):
         """验证 ToolRiskLevel 枚举值与规范文档一致。"""
@@ -92,7 +95,7 @@ class TestToolApprovalRules:
             requires_approval=True,  # 必须为 True
             timeout_seconds=10,
             idempotent=True,
-            parameters_schema={}
+            parameters_schema={},
         )
 
         assert write_tool.risk_level == ToolRiskLevel.WRITE
@@ -108,7 +111,7 @@ class TestToolApprovalRules:
             requires_approval=True,  # 必须为 True
             timeout_seconds=10,
             idempotent=False,
-            parameters_schema={}
+            parameters_schema={},
         )
 
         assert admin_tool.risk_level == ToolRiskLevel.ADMIN
@@ -124,7 +127,7 @@ class TestToolApprovalRules:
             requires_approval=False,  # 应该为 False
             timeout_seconds=10,
             idempotent=True,
-            parameters_schema={}
+            parameters_schema={},
         )
 
         assert read_tool.risk_level == ToolRiskLevel.READ
@@ -166,7 +169,7 @@ class TestCitationSerialization:
             page=1,
             chunk_text="test",
             score=0.95,
-            rerank_score=0.88
+            rerank_score=0.88,
         )
         assert valid_citation.score == 0.95
 
@@ -179,7 +182,7 @@ class TestCitationSerialization:
                 page=1,
                 chunk_text="test",
                 score=1.5,  # 超出范围
-                rerank_score=0.88
+                rerank_score=0.88,
             )
 
         with pytest.raises(ValidationError):
@@ -190,7 +193,7 @@ class TestCitationSerialization:
                 page=1,
                 chunk_text="test",
                 score=0.95,
-                rerank_score=-0.1  # 超出范围
+                rerank_score=-0.1,  # 超出范围
             )
 
 
@@ -213,7 +216,7 @@ class TestDocumentChunkACL:
             chunk_text="test",
             tenant_id="tenant_hr",
             department_id="dept_001",
-            visibility=Visibility.PUBLIC
+            visibility=Visibility.PUBLIC,
         )
 
         # acl_metadata 应该默认为空字典
@@ -227,7 +230,7 @@ class TestDocumentChunkACL:
             chunk_text="test",
             tenant_id="tenant_hr",
             department_id="dept_001",
-            visibility=Visibility.CONFIDENTIAL
+            visibility=Visibility.CONFIDENTIAL,
         )
 
         assert chunk.visibility == Visibility.CONFIDENTIAL
@@ -254,7 +257,7 @@ class TestSchemaRoundtrip:
             "visibility": "department",
             "metadata": {"author": "HR", "version": "1.0"},
             "created_at": "2026-05-28T10:00:00Z",
-            "updated_at": "2026-05-28T10:05:00Z"
+            "updated_at": "2026-05-28T10:05:00Z",
         }
 
         # 使用 model_validate 转换
@@ -274,7 +277,7 @@ class TestSchemaRoundtrip:
             "thread_id": "thread_001",
             "original_query": "测试查询",
             "status": "created",
-            "created_at": "2026-05-28T10:00:00Z"
+            "created_at": "2026-05-28T10:00:00Z",
         }
 
         run = AgentRunResponse.model_validate(run_data)
@@ -292,7 +295,7 @@ class TestSchemaRoundtrip:
             "description": "检索制度证据",
             "permission_scope": "hr.document.read",
             "risk_level": "read",
-            "requires_approval": False
+            "requires_approval": False,
         }
 
         tool = ToolDefinition.model_validate(tool_data)
@@ -316,11 +319,7 @@ class TestUserContext:
 
     def test_user_context_optional_fields(self):
         """验证 UserContext 可选字段有默认值。"""
-        user = UserContext(
-            user_id="user_002",
-            tenant_id="tenant_eng",
-            role="employee"
-        )
+        user = UserContext(user_id="user_002", tenant_id="tenant_eng", role="employee")
 
         assert user.department_ids == []
         assert user.permissions == []
@@ -332,9 +331,7 @@ class TestEvidenceBundle:
     def test_evidence_bundle_creation(self, sample_citation):
         """验证 EvidenceBundle 创建。"""
         bundle = EvidenceBundle(
-            evidence_list=[sample_citation],
-            total_count=1,
-            query_coverage_score=0.92
+            evidence_list=[sample_citation], total_count=1, query_coverage_score=0.92
         )
 
         assert len(bundle.evidence_list) == 1
@@ -344,20 +341,12 @@ class TestEvidenceBundle:
     def test_evidence_bundle_score_range(self):
         """验证 query_coverage_score 范围。"""
         # 合法的分数
-        bundle = EvidenceBundle(
-            evidence_list=[],
-            total_count=0,
-            query_coverage_score=0.5
-        )
+        bundle = EvidenceBundle(evidence_list=[], total_count=0, query_coverage_score=0.5)
         assert bundle.query_coverage_score == 0.5
 
         # 非法的分数
         with pytest.raises(ValidationError):
-            EvidenceBundle(
-                evidence_list=[],
-                total_count=0,
-                query_coverage_score=1.5
-            )
+            EvidenceBundle(evidence_list=[], total_count=0, query_coverage_score=1.5)
 
 
 class TestDocumentStatusProgress:
@@ -373,7 +362,7 @@ class TestDocumentStatusProgress:
             id="doc_001",
             status=DocumentStatus.PARSING,
             progress=0.5,
-            updated_at="2026-05-28T10:00:00Z"
+            updated_at="2026-05-28T10:00:00Z",
         )
         assert status.progress == 0.5
 
@@ -382,7 +371,7 @@ class TestDocumentStatusProgress:
             id="doc_002",
             status=DocumentStatus.QUEUED,
             progress=0.0,
-            updated_at="2026-05-28T10:00:00Z"
+            updated_at="2026-05-28T10:00:00Z",
         )
         assert status_zero.progress == 0.0
 
@@ -390,7 +379,7 @@ class TestDocumentStatusProgress:
             id="doc_003",
             status=DocumentStatus.READY,
             progress=1.0,
-            updated_at="2026-05-28T10:00:00Z"
+            updated_at="2026-05-28T10:00:00Z",
         )
         assert status_full.progress == 1.0
 
@@ -404,7 +393,7 @@ class TestDocumentStatusProgress:
                 id="doc_001",
                 status=DocumentStatus.PARSING,
                 progress=1.5,  # 超出范围
-                updated_at="2026-05-28T10:00:00Z"
+                updated_at="2026-05-28T10:00:00Z",
             )
 
         with pytest.raises(ValidationError):
@@ -412,7 +401,7 @@ class TestDocumentStatusProgress:
                 id="doc_001",
                 status=DocumentStatus.PARSING,
                 progress=-0.1,  # 超出范围
-                updated_at="2026-05-28T10:00:00Z"
+                updated_at="2026-05-28T10:00:00Z",
             )
 
 
@@ -421,7 +410,6 @@ class TestApprovalRequest:
 
     def test_approval_request_creation(self):
         """验证 ApprovalRequest 创建。"""
-        from app.schemas.approval import ApprovalRequest
         from app.schemas.enums import ToolRiskLevel
 
         approval = ApprovalRequest(
@@ -433,7 +421,7 @@ class TestApprovalRequest:
             expected_effect="创建一个入职工单",
             evidence=[],
             risk_level=ToolRiskLevel.WRITE,
-            options=["approve", "edit", "reject"]
+            options=["approve", "edit", "reject"],
         )
 
         assert approval.id == "appr_001"
@@ -447,8 +435,7 @@ class TestApprovalRequest:
         from app.schemas.approval import ApprovalDecision
 
         decision = ApprovalDecision(
-            decision="edit",
-            edited_parameters={"title": "修改后的入职申请", "priority": "high"}
+            decision="edit", edited_parameters={"title": "修改后的入职申请", "priority": "high"}
         )
 
         assert decision.decision == "edit"
@@ -480,14 +467,14 @@ class TestOrmModels:
         """验证所有 ORM 模型可以导入、配置并在 SQLite 内存库建表。"""
         from sqlalchemy import create_engine
 
-        from app.models.base import Base
-        import app.models.agent_run  # noqa: F401
-        import app.models.agent_step  # noqa: F401
-        import app.models.approval  # noqa: F401
-        import app.models.chunk  # noqa: F401
-        import app.models.document  # noqa: F401
-        import app.models.eval  # noqa: F401
+        import app.models.agent_run
+        import app.models.agent_step
+        import app.models.approval
+        import app.models.chunk
+        import app.models.document
+        import app.models.eval
         import app.models.tool_call  # noqa: F401
+        from app.models.base import Base
 
         Base.registry.configure()
         engine = create_engine("sqlite:///:memory:")

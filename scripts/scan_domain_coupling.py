@@ -15,7 +15,6 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-
 RUNTIME_TOKENS = (
     "runtime_kernel",
     "runtime/",
@@ -104,11 +103,7 @@ def _list_git_paths(repo: Path) -> list[str]:
         "--exclude-standard",
         "--full-name",
     )
-    return sorted(
-        item.decode("utf-8")
-        for item in output.split(b"\0")
-        if item.strip()
-    )
+    return sorted(item.decode("utf-8") for item in output.split(b"\0") if item.strip())
 
 
 def is_runtime_path(path: str) -> bool:
@@ -240,9 +235,7 @@ def write_report(repo: Path, output: Path, *, command: str = "") -> None:
     dirty = _worktree_dirty(repo)
     records = scan_domain_coupling(repo)
     if head != repository_head(repo):
-        raise RuntimeError(
-            "repository HEAD changed during domain coupling scan; re-run"
-        )
+        raise RuntimeError("repository HEAD changed during domain coupling scan; re-run")
 
     report = _render_report(
         records,

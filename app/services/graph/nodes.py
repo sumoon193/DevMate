@@ -3,6 +3,7 @@ LangGraph 节点函数。
 
 实现 Graph 中各个节点的逻辑。
 """
+
 from __future__ import annotations
 
 import logging
@@ -22,10 +23,7 @@ from app.services.retrieval.hybrid import HybridRetriever
 logger = logging.getLogger(__name__)
 
 
-async def intent_node(
-    state: AgentGraphState,
-    run_manager: AgentRunManager
-) -> dict[str, Any]:
+async def intent_node(state: AgentGraphState, run_manager: AgentRunManager) -> dict[str, Any]:
     """
     意图分析节点。
 
@@ -51,13 +49,12 @@ async def intent_node(
 
     return {
         "intent": intent,
-        "rewritten_queries": [question]  # V1 不改写
+        "rewritten_queries": [question],  # V1 不改写
     }
 
 
 async def query_rewrite_node(
-    state: AgentGraphState,
-    run_manager: AgentRunManager
+    state: AgentGraphState, run_manager: AgentRunManager
 ) -> dict[str, Any]:
     """
     查询改写节点。
@@ -79,15 +76,11 @@ async def query_rewrite_node(
     # V1 简单改写（实际上不改写）
     rewritten_queries = [question]
 
-    return {
-        "rewritten_queries": rewritten_queries
-    }
+    return {"rewritten_queries": rewritten_queries}
 
 
 async def retrieve_node(
-    state: AgentGraphState,
-    run_manager: AgentRunManager,
-    hybrid_retriever: HybridRetriever
+    state: AgentGraphState, run_manager: AgentRunManager, hybrid_retriever: HybridRetriever
 ) -> dict[str, Any]:
     """
     检索节点。
@@ -111,10 +104,7 @@ async def retrieve_node(
     try:
         # 检索证据
         evidence = await hybrid_retriever.retrieve(
-            query=question,
-            tenant_id=user.tenant_id,
-            department_ids=user.department_ids,
-            top_k=5
+            query=question, tenant_id=user.tenant_id, department_ids=user.department_ids, top_k=5
         )
 
         # 更新 Run 状态
@@ -130,29 +120,23 @@ async def retrieve_node(
                     "page": c.page,
                     "chunk_text": c.chunk_text[:200],
                     "score": c.score,
-                    "rerank_score": c.rerank_score
+                    "rerank_score": c.rerank_score,
                 }
                 for c in evidence.evidence_list
             ],
             "total_count": evidence.total_count,
-            "query_coverage_score": evidence.query_coverage_score
+            "query_coverage_score": evidence.query_coverage_score,
         }
 
-        return {
-            "evidence": evidence_dict
-        }
+        return {"evidence": evidence_dict}
 
     except Exception as e:
         logger.error("retrieve_failed", extra={"run_id": run_id, "error": str(e)})
-        return {
-            "evidence": None,
-            "errors": state.get("errors", []) + [f"检索失败: {str(e)}"]
-        }
+        return {"evidence": None, "errors": state.get("errors", []) + [f"检索失败: {e!s}"]}
 
 
 async def evidence_score_node(
-    state: AgentGraphState,
-    run_manager: AgentRunManager
+    state: AgentGraphState, run_manager: AgentRunManager
 ) -> dict[str, Any]:
     """
     证据评分节点。
@@ -176,21 +160,13 @@ async def evidence_score_node(
         coverage = evidence.get("query_coverage_score", 0.0)
         count = evidence.get("total_count", 0)
         logger.info(
-            "evidence_scored",
-            extra={
-                "run_id": run_id,
-                "coverage": coverage,
-                "count": count
-            }
+            "evidence_scored", extra={"run_id": run_id, "coverage": coverage, "count": count}
         )
 
     return {}  # 不修改状态
 
 
-async def plan_node(
-    state: AgentGraphState,
-    run_manager: AgentRunManager
-) -> dict[str, Any]:
+async def plan_node(state: AgentGraphState, run_manager: AgentRunManager) -> dict[str, Any]:
     """
     计划节点。
 
@@ -204,9 +180,7 @@ async def plan_node(
         状态更新
     """
     run_id = state["run_id"]
-    question = state["question"]
     intent = state.get("intent", "hr_query")
-    evidence = state.get("evidence")
 
     logger.info("plan_node", extra={"run_id": run_id, "intent": intent})
 
@@ -216,8 +190,8 @@ async def plan_node(
         plan = AgentPlan(
             id=f"plan_{uuid.uuid4().hex[:8]}",
             run_id=run_id,
-            steps=["create_mock_hr_ticket"],
-            current_step_index=0
+            steps=["create_hr_ticket"],
+            current_step_index=0,
         )
     else:
         # 普通查询
@@ -225,20 +199,17 @@ async def plan_node(
             id=f"plan_{uuid.uuid4().hex[:8]}",
             run_id=run_id,
             steps=["policy_search"],
-            current_step_index=0
+            current_step_index=0,
         )
 
     # 更新 Run 状态
     await run_manager.create_plan(run_id, plan)
 
-    return {
-        "plan": plan
-    }
+    return {"plan": plan}
 
 
 async def approval_gate_node(
-    state: AgentGraphState,
-    run_manager: AgentRunManager
+    state: AgentGraphState, run_manager: AgentRunManager
 ) -> dict[str, Any]:
     """
     审批门控节点。
@@ -268,8 +239,7 @@ async def approval_gate_node(
 
     pending_approvals = await run_manager.get_pending_approvals(run_id)
     existing_approval = next(
-        (approval for approval in pending_approvals if approval.tool_name == tool_name),
-        None
+        (approval for approval in pending_approvals if approval.tool_name == tool_name), None
     )
 
     if existing_approval:
@@ -280,17 +250,14 @@ async def approval_gate_node(
             parameters=existing_approval.parameters,
             result=None,
             status=ToolCallStatus.PENDING,
-            approval_required=True
+            approval_required=True,
         )
         approval_id = existing_approval.id
         parameters = existing_approval.parameters
     else:
         # 执行工具（写入型工具会创建审批请求，但不会真正执行）
         tool_call = await run_manager.execute_tool(
-            run_id=run_id,
-            tool_name=tool_name,
-            parameters=parameters,
-            user_context=user
+            run_id=run_id, tool_name=tool_name, parameters=parameters, user_context=user
         )
 
         if not tool_call.approval_required or tool_call.status != ToolCallStatus.PENDING:
@@ -298,8 +265,7 @@ async def approval_gate_node(
 
         created_approvals = await run_manager.get_pending_approvals(run_id)
         approval_request = next(
-            approval for approval in created_approvals
-            if approval.tool_call_id == tool_call.id
+            approval for approval in created_approvals if approval.tool_call_id == tool_call.id
         )
         approval_id = approval_request.id
 
@@ -308,7 +274,7 @@ async def approval_gate_node(
         approval_id=approval_id,
         tool_name=tool_name,
         tool_args=parameters,
-        evidence=state.get("evidence")
+        evidence=state.get("evidence"),
     )
 
     # 策略化自动审批：仅对本次新建的审批生效；resume 恢复路径（existing_approval
@@ -336,14 +302,11 @@ async def approval_gate_node(
     return {
         "pending_tool_call": tool_call,
         "pending_approval_id": approval_id,
-        "approval_decision": approval_decision
+        "approval_decision": approval_decision,
     }
 
 
-async def tool_execute_node(
-    state: AgentGraphState,
-    run_manager: AgentRunManager
-) -> dict[str, Any]:
+async def tool_execute_node(state: AgentGraphState, run_manager: AgentRunManager) -> dict[str, Any]:
     """
     工具执行节点。
 
@@ -371,13 +334,12 @@ async def tool_execute_node(
             run_id=run_id,
             approval_id=pending_approval_id,
             approval_decision=approval_decision,
-            user_context=user
+            user_context=user,
         )
 
         if approval_request.status == ApprovalStatus.REJECTED:
             await run_manager.mark_resumed_without_tool(
-                run_id,
-                f"approval rejected for {approval_request.tool_name}"
+                run_id, f"approval rejected for {approval_request.tool_name}"
             )
             return {
                 "tool_results": tool_results,
@@ -387,14 +349,12 @@ async def tool_execute_node(
                 "answer": {
                     "answer": f"已拒绝执行工具 {approval_request.tool_name}，不会创建工单。",
                     "citations": [],
-                    "confidence": 1.0
-                }
+                    "confidence": 1.0,
+                },
             }
 
         executed_tool = await run_manager.execute_approved_tool(
-            run_id=run_id,
-            approval_id=approval_request.id,
-            user_context=user
+            run_id=run_id, approval_id=approval_request.id, user_context=user
         )
         tool_results.append(executed_tool)
 
@@ -402,7 +362,7 @@ async def tool_execute_node(
         "tool_results": tool_results,
         "pending_tool_call": None,
         "pending_approval_id": None,
-        "approval_decision": None
+        "approval_decision": None,
     }
 
 
@@ -484,7 +444,7 @@ async def answer_node(
                 "document_name": c.get("document_name"),
                 "section": c.get("section"),
                 "page": c.get("page"),
-                "chunk_text": c.get("chunk_text", "")[:100]
+                "chunk_text": c.get("chunk_text", "")[:100],
             }
             for c in evidence_list[:3]
         ]
@@ -495,31 +455,25 @@ async def answer_node(
         answer = {
             "answer": f"根据公司制度，关于「{question}」的回答：\n\n" + first_text + "...",
             "citations": citations,
-            "confidence": coverage
+            "confidence": coverage,
         }
     elif tool_results:
         answer = {
-            "answer": f"根据工具执行结果，关于「{question}」：\n\n" +
-                      str(tool_results[0].result),
+            "answer": f"根据工具执行结果，关于「{question}」：\n\n" + str(tool_results[0].result),
             "citations": [],
-            "confidence": 0.8
+            "confidence": 0.8,
         }
     else:
         answer = {
             "answer": f"抱歉，关于「{question}」，我暂时无法找到足够的证据来回答。请提供更多上下文或联系 HR 部门。",
             "citations": [],
-            "confidence": 0.0
+            "confidence": 0.0,
         }
 
-    return {
-        "answer": answer
-    }
+    return {"answer": answer}
 
 
-async def fact_check_node(
-    state: AgentGraphState,
-    run_manager: AgentRunManager
-) -> dict[str, Any]:
+async def fact_check_node(state: AgentGraphState, run_manager: AgentRunManager) -> dict[str, Any]:
     """
     事实核查节点。
 
@@ -541,15 +495,14 @@ async def fact_check_node(
     if answer:
         confidence = answer.get("confidence", 0.0)
         if confidence < 0.3:
-            logger.warning("low_confidence_answer", extra={"run_id": run_id, "confidence": confidence})
+            logger.warning(
+                "low_confidence_answer", extra={"run_id": run_id, "confidence": confidence}
+            )
 
     return {}  # 不修改状态
 
 
-async def finalize_node(
-    state: AgentGraphState,
-    run_manager: AgentRunManager
-) -> dict[str, Any]:
+async def finalize_node(state: AgentGraphState, run_manager: AgentRunManager) -> dict[str, Any]:
     """
     完成节点。
 
@@ -607,7 +560,7 @@ def _classify_intent(question: str) -> str:
 
 def _build_tool_parameters(tool_name: str, question: str) -> dict[str, Any]:
     """根据工具名称和用户问题生成确定性的工具参数。"""
-    if tool_name == "create_mock_hr_ticket":
+    if tool_name == "create_hr_ticket":
         return {
             "title": "新员工入职工单",
             "description": question,

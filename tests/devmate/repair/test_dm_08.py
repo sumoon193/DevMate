@@ -13,7 +13,6 @@ from app.devmate.repair import (
     DM08Result,
     EmptyPlanError,
     PatchArtifact,
-    RepairPlan,
     RuntimeEvent,
 )
 
@@ -80,9 +79,7 @@ def test_artifact_digest_matches_content() -> None:
     result = RuntimeEvent().execute(_input())
 
     for artifact in result.artifacts:
-        expected = hashlib.sha256(
-            artifact.content.encode("utf-8")
-        ).hexdigest()
+        expected = hashlib.sha256(artifact.content.encode("utf-8")).hexdigest()
         assert artifact.digest == expected
 
 

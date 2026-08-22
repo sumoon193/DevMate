@@ -371,6 +371,39 @@ code {
 }
 
 @media (max-width: 720px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .workspace-rail {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .rail-menu {
+    width: 100%;
+    max-width: 100%;
+    justify-content: space-between;
+    overflow-x: hidden;
+  }
+
+  .rail-menu .el-menu-item {
+    min-width: 44px;
+    padding: 0 10px;
+  }
+
+  .rail-menu .el-menu-item span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
   .workspace-header {
     padding: 18px;
   }

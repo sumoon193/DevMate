@@ -1,4 +1,5 @@
 """MCP 2025-11-25 与 A2A read-only 协议边界测试。"""
+
 from __future__ import annotations
 
 import pytest
@@ -46,9 +47,7 @@ def _mcp_protocol_server() -> tuple[LocalMcpProtocolServer, FakeMcpServer, Appro
                 "text": "新员工应提交身份证明。",
             }
         },
-        prompts={
-            "plan_hr_case": "基于制度证据生成长期 Case 计划，并标注写操作审批。"
-        },
+        prompts={"plan_hr_case": "基于制度证据生成长期 Case 计划，并标注写操作审批。"},
     )
     return server, fake, approvals
 
@@ -78,7 +77,7 @@ async def test_mcp_write_tool_returns_structured_pending_approval() -> None:
             id=2,
             method="tools/call",
             params={
-                "name": "create_mock_hr_ticket",
+                "name": "create_hr_ticket",
                 "arguments": {"title": "入职工单", "description": "新员工入职"},
             },
         ),
@@ -88,7 +87,7 @@ async def test_mcp_write_tool_returns_structured_pending_approval() -> None:
 
     assert response.result["structuredContent"]["status"] == "pending"
     assert response.result["structuredContent"]["approvalRequired"] is True
-    assert fake.call_count("create_mock_hr_ticket") == 0
+    assert fake.call_count("create_hr_ticket") == 0
     assert len(approvals.get_pending_requests("run_mcp_protocol")) == 1
 
 

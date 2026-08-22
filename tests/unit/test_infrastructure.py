@@ -3,6 +3,7 @@
 
 默认不依赖 Docker 或真实外部服务。
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -47,6 +48,7 @@ def test_trace_exporter_matches_runtime_mode() -> None:
     assert isinstance(fallback, LogExporter)
     assert isinstance(full, OTelTraceExporter)
     assert full.endpoint == "http://phoenix:6006"
+    assert full.strict is True
 
 
 def test_health_returns_fallback_status_without_docker(monkeypatch) -> None:
@@ -116,6 +118,7 @@ def test_env_example_contains_required_keys() -> None:
         "QWEN_API_BASE_URL",
         "QWEN_RERANK_BASE_URL",
         "QWEN_TIMEOUT_SECONDS",
+        "RAGAS_TIMEOUT_SECONDS",
         "EMBEDDING_DIM",
         "EMBEDDING_BATCH_SIZE",
         "PHOENIX_ENDPOINT",

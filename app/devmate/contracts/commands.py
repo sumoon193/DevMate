@@ -11,9 +11,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.devmate.contracts.state import (
+    LEGAL_TRANSITIONS,
     CaseStatus,
     IllegalTransitionError,
-    LEGAL_TRANSITIONS,
 )
 
 
@@ -41,8 +41,7 @@ class RuntimeEvent:
     def execute(input_: DM02Input) -> DM02Result:
         if input_.target_status not in LEGAL_TRANSITIONS[input_.current_status]:
             raise IllegalTransitionError(
-                "illegal transition "
-                f"{input_.current_status.value} -> {input_.target_status.value}"
+                f"illegal transition {input_.current_status.value} -> {input_.target_status.value}"
             )
         return DM02Result(
             runtime_id=input_.runtime_id,

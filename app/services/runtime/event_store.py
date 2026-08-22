@@ -1,10 +1,11 @@
 """append-only Event Store 及 deterministic in-memory 实现。"""
+
 from __future__ import annotations
 
 import hashlib
 import json
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.core.exceptions import NotFoundError, ValidationError
@@ -55,7 +56,7 @@ class InMemoryEventStore:
 
         sequence = len(stream) + 1
         prev_hash = stream[-1].event_hash if stream else ""
-        created_at = datetime.now(timezone.utc)
+        created_at = datetime.now(UTC)
         event_id = f"evt_{uuid.uuid4().hex[:16]}"
         event_hash = self._compute_hash(
             event_id=event_id,
@@ -144,7 +145,7 @@ class InMemoryEventStore:
         claim_ttl_seconds: int = 30,
     ) -> list[OutboxMessage]:
         """claim 待投递消息，并允许回收超时 claim。"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         stale_before = now - timedelta(seconds=claim_ttl_seconds)
         claimed: list[OutboxMessage] = []
         for message in self._outbox.values():
@@ -168,7 +169,7 @@ class InMemoryEventStore:
         if message.claimed_by not in {None, owner_id}:
             raise ValidationError(f"Outbox message is claimed by another owner: {outbox_id}")
         if message.published_at is None:
-            message.published_at = datetime.now(timezone.utc)
+            message.published_at = datetime.now(UTC)
             if self._metrics is not None:
                 self._metrics.increment("runtime.outbox.published")
                 self._metrics.set_gauge(

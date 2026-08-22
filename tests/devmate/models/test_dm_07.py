@@ -13,9 +13,9 @@ import pytest
 
 from app.devmate.models import (
     CaseCommand,
+    DiagnosisParseError,
     DM07Input,
     DM07Result,
-    DiagnosisParseError,
     InvalidModeError,
     ModelUnavailableError,
     TypedDiagnosis,
@@ -23,9 +23,7 @@ from app.devmate.models import (
 
 PROMPTS_ROOT = Path(__file__).resolve().parents[3] / "app" / "prompts" / "devmate"
 
-RECORDED_RAW = (
-    "summary=real summary\nseverity=error\nrule=reported_rule\nconfidence=0.95\n"
-)
+RECORDED_RAW = "summary=real summary\nseverity=error\nrule=reported_rule\nconfidence=0.95\n"
 INVALID_RAW = "not a diagnosis at all\n"
 
 
@@ -62,9 +60,7 @@ def test_fake_mode_produces_typed_diagnosis() -> None:
 
 
 def test_recorded_mode_replays_fixed_output() -> None:
-    result = CaseCommand().execute(
-        _input(mode="recorded", recorded={"case-1": RECORDED_RAW})
-    )
+    result = CaseCommand().execute(_input(mode="recorded", recorded={"case-1": RECORDED_RAW}))
 
     assert result.mode == "recorded"
     assert result.degraded is False
@@ -82,9 +78,7 @@ def test_recorded_missing_entry_degrades_to_fake() -> None:
 
 
 def test_invalid_output_degrades_to_fake() -> None:
-    result = CaseCommand().execute(
-        _input(mode="recorded", recorded={"case-1": INVALID_RAW})
-    )
+    result = CaseCommand().execute(_input(mode="recorded", recorded={"case-1": INVALID_RAW}))
 
     assert result.degraded is True
     assert result.diagnosis.rule == "fake_rule"

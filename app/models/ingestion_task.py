@@ -3,9 +3,10 @@
 
 持久化文档入库过程的每个阶段状态。
 """
+
 from __future__ import annotations
 
-from sqlalchemy import Float, JSON, String, Text
+from sqlalchemy import JSON, Float, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, IDMixin, TimestampMixin
@@ -17,6 +18,7 @@ class IngestionTaskRecord(Base, IDMixin, TimestampMixin):
 
     记录文档从上传到入库完成的完整生命周期。
     """
+
     __tablename__ = "ingestion_tasks"
 
     document_id: Mapped[str] = mapped_column(

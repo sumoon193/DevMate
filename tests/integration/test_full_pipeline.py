@@ -3,6 +3,7 @@
 
 每个测试直接与 Docker 容器中的服务交互。
 """
+
 from __future__ import annotations
 
 import uuid
@@ -12,10 +13,8 @@ import pytest_asyncio  # noqa: F401 — 保证 pytest_asyncio fixture 注册
 
 from app.schemas.chunk import ChunkCreate
 from app.schemas.enums import RunStatus, Visibility
-from app.schemas.retrieval import RetrievalResult
 from app.schemas.user import UserContext
 from app.services.retrieval.store.base import ACLFilter
-
 
 # ── PostgreSQL ────────────────────────────────────────────────────────
 
@@ -98,7 +97,7 @@ async def test_postgres_save_step(db_session):
 def test_minio_put_and_get(minio_storage, unique_id):
     """验证 MinIO 能存储和读取对象。"""
     key = f"test/{unique_id}/hello.txt"
-    data = "你好，企业智慧！".encode("utf-8")
+    data = "你好，企业智慧！".encode()
 
     minio_storage.put_object(key, data, content_type="text/plain")
     assert minio_storage.object_exists(key)
@@ -158,7 +157,9 @@ async def test_milvus_add_and_search(milvus_store, unique_id):
     query_embedding = [0.1] * 1024
     results = await milvus_store.search(query_embedding, acl, top_k=5)
 
-    assert len(results) >= 1, f"Milvus search returned 0 results (collection has {len(chunks)} chunks)"
+    assert len(results) >= 1, (
+        f"Milvus search returned 0 results (collection has {len(chunks)} chunks)"
+    )
     assert any(r.document_id == f"doc_{unique_id}" for r in results), (
         f"Expected doc_{unique_id} in results, got: {[r.document_id for r in results]}"
     )
@@ -211,23 +212,25 @@ async def test_es_delete_by_document(es_store, unique_id):
     """验证 Elasticsearch 能按文档 ID 删除。"""
     doc_id = f"doc_del_{unique_id}"
 
-    await es_store.add_chunks([
-        ChunkCreate(
-            document_id=doc_id,
-            chunk_text="待删除的测试文档",
-            context_prefix="",
-            full_text="",
-            parent_id=None,
-            chunk_type="child",
-            heading_path="",
-            page_numbers=[1],
-            token_count=5,
-            tenant_id="tenant_test",
-            department_id="dept_001",
-            visibility=Visibility.DEPARTMENT,
-            acl_metadata={},
-        )
-    ])
+    await es_store.add_chunks(
+        [
+            ChunkCreate(
+                document_id=doc_id,
+                chunk_text="待删除的测试文档",
+                context_prefix="",
+                full_text="",
+                parent_id=None,
+                chunk_type="child",
+                heading_path="",
+                page_numbers=[1],
+                token_count=5,
+                tenant_id="tenant_test",
+                department_id="dept_001",
+                visibility=Visibility.DEPARTMENT,
+                acl_metadata={},
+            )
+        ]
+    )
 
     await es_store.delete_by_document(doc_id)
 
@@ -249,7 +252,9 @@ async def test_redis_rate_limiter(redis_client):
     """验证 Redis 速率限制器。"""
     from app.services.security.redis_rate_limiter import RedisRateLimiter
 
-    limiter = RedisRateLimiter(redis_url="redis://localhost:6379/0", max_requests=3, window_seconds=60)
+    limiter = RedisRateLimiter(
+        redis_url="redis://localhost:6379/0", max_requests=3, window_seconds=60
+    )
 
     user_id = f"user_{uuid.uuid4().hex[:8]}"
 
@@ -279,9 +284,10 @@ async def test_redis_rate_limiter(redis_client):
 @pytest.mark.integration
 async def test_run_manager_with_postgres(db_session, settings):
     """验证 AgentRunManager 使用 PostgreSQL 持久化。"""
-    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-    from app.services.agent.run_manager import AgentRunManager
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
     from app.services.agent.approval_manager import ApprovalManager
+    from app.services.agent.run_manager import AgentRunManager
     from app.services.agent.step_logger import StepLogger
     from app.services.agent.tool_executor import ToolExecutor
     from app.services.agent.tool_registry import ToolRegistry
@@ -323,6 +329,7 @@ async def test_run_manager_with_postgres(db_session, settings):
     assert run.status == RunStatus.CREATED
 
     from app.db import crud as db
+
     async with factory() as session:
         loaded = await db.get_run(session, run.id)
         assert loaded is not None
@@ -348,7 +355,12 @@ async def test_run_manager_persists_tool_call_before_approval_snapshot(db_sessio
     from app.models.approval import ApprovalRequest as ApprovalORM
     from app.models.tool_call import ToolCall as ToolCallORM
     from app.schemas.approval import ApprovalDecision
-    from app.schemas.enums import ApprovalDecisionType, ApprovalStatus, ToolCallStatus, ToolRiskLevel
+    from app.schemas.enums import (
+        ApprovalDecisionType,
+        ApprovalStatus,
+        ToolCallStatus,
+        ToolRiskLevel,
+    )
     from app.schemas.tool import ToolDefinition
     from app.services.agent.approval_manager import ApprovalManager
     from app.services.agent.run_manager import AgentRunManager
@@ -369,7 +381,7 @@ async def test_run_manager_persists_tool_call_before_approval_snapshot(db_sessio
     registry = ToolRegistry()
     registry.register(
         ToolDefinition(
-            name="create_mock_hr_ticket",
+            name="create_hr_ticket",
             description="创建模拟 HR 工单",
             permission_scope="hr.ticket.write",
             risk_level=ToolRiskLevel.WRITE,
@@ -404,7 +416,7 @@ async def test_run_manager_persists_tool_call_before_approval_snapshot(db_sessio
     await run_mgr.start_run(run.id)
     pending_call = await run_mgr.execute_tool(
         run_id=run.id,
-        tool_name="create_mock_hr_ticket",
+        tool_name="create_hr_ticket",
         parameters={
             "title": "新员工入职办理",
             "description": "准备入职材料与系统账号",

@@ -3,9 +3,10 @@ MCP 风格工具 adapter。
 
 所有工具调用仍经过 ToolRegistry、ToolExecutor 和 ApprovalManager。
 """
+
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 from app.core.exceptions import ValidationError
 from app.schemas.tool import ToolCall, ToolDefinition
@@ -13,14 +14,25 @@ from app.schemas.user import UserContext
 from app.services.agent.approval_manager import ApprovalManager
 from app.services.agent.tool_executor import ToolExecutor
 from app.services.agent.tool_registry import ToolRegistry
-from app.services.agent.tools.base import ToolHandler
-from app.services.mcp.fake_server import FakeMcpServer
+
+
+class McpServer(Protocol):
+    """MCP 工具发现与执行边界；生产和离线实现必须显式装配。"""
+
+    def list_tools(self) -> list[ToolDefinition]: ...
+
+    async def call_tool(
+        self,
+        name: str,
+        parameters: dict[str, Any],
+        user_context: UserContext,
+    ) -> dict[str, Any]: ...
 
 
 class McpToolDiscovery:
-    """从 fake MCP server 发现工具定义。"""
+    """从 MCP server 发现工具定义。"""
 
-    def __init__(self, server: FakeMcpServer) -> None:
+    def __init__(self, server: McpServer) -> None:
         self._server = server
 
     def discover_tools(self) -> list[ToolDefinition]:
@@ -28,15 +40,15 @@ class McpToolDiscovery:
         return self._server.list_tools()
 
     @property
-    def server(self) -> FakeMcpServer:
-        """返回底层 fake server。"""
+    def server(self) -> McpServer:
+        """返回底层 MCP server。"""
         return self._server
 
 
 class McpToolHandler:
     """ToolExecutor 可调用的 MCP 工具处理器。"""
 
-    def __init__(self, server: FakeMcpServer, tool_name: str) -> None:
+    def __init__(self, server: McpServer, tool_name: str) -> None:
         self._server = server
         self._tool_name = tool_name
 
@@ -45,7 +57,7 @@ class McpToolHandler:
         parameters: dict[str, Any],
         user_context: UserContext,
     ) -> dict[str, Any]:
-        """调用 fake MCP server。"""
+        """调用 MCP server。"""
         return await self._server.call_tool(self._tool_name, parameters, user_context)
 
 

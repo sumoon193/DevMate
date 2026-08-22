@@ -23,6 +23,8 @@ dependencies = [
     "redis>=5.0",
     "langgraph-checkpoint-postgres>=2.0",
     "aiohttp>=3.13.5",
+    "openai>=2.0",
+    "ragas>=0.4,<0.5",
     "celery>=5.4",
     "pypdf>=6.12.2",
     "python-docx>=1.2.0",
@@ -32,6 +34,7 @@ dependencies = [
     "opentelemetry-sdk>=1.29",
     "opentelemetry-exporter-otlp-proto-http>=1.29",
     "aiosqlite>=0.22.1",
+    "PyJWT[crypto]>=2.10",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +53,9 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = [
+    "-m", "not integration and not e2e",
+]
 markers = [
     "unit: 纯函数、schema、状态机等无外部依赖测试",
     "service: 使用 fake adapter 的 service 层集成测试",
@@ -57,10 +63,34 @@ markers = [
     "integration: 依赖 Docker（PostgreSQL / Redis / Milvus 等）的集成测试",
     "e2e: 端到端测试",
 ]
-addopts = [
-    "-m", "not integration and not e2e",
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    ".test-tmp",
+    "frontend",
+    "pytest-cache-files-*",
+    "runtime_storage",
+    "runtime_test_files",
 ]
 
+[tool.ruff.lint]
+select = ["ASYNC", "B", "E4", "E7", "E9", "F", "G", "I", "S"]
+ignore = [
+    "E501",   # 交给格式化器处理，避免与结构化字符串冲突
+    "RUF001", # 中文标点属于项目正常文案
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"app/api/*.py" = ["B008"] # FastAPI Depends/Query 的声明式参数写法
+"scripts/audit_origin_map.py" = ["S603", "S607"]
+"scripts/quality_gate.py" = ["S603", "S607"]
+"scripts/scan_domain_coupling.py" = ["S603", "S607"]
+"scripts/smoke_qwen_ai.py" = ["E402"]
+"tests/**/*.py" = ["S101", "S105", "S106", "S603", "S607"]
 [tool.setuptools.packages.find]
 include = ["app*"]
 exclude = ["frontend*", "demo_docs*", "migrations*", "tests*", "scripts*"]

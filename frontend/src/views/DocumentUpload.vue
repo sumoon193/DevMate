@@ -8,7 +8,7 @@ import { getIngestionTask, uploadDocument } from '@/api/client'
 import type { IngestionStatusResponse } from '@/types'
 
 const tenantId = ref('tenant_001')
-const departmentId = ref('dept_hr')
+const departmentId = ref('dept_engineering')
 const visibility = ref('department')
 const uploading = ref(false)
 const currentTask = ref<IngestionStatusResponse | null>(null)
@@ -87,7 +87,7 @@ onUnmounted(() => {
       <header class="page-section-header">
         <div>
           <p class="section-kicker">Document ingestion</p>
-          <h2>把 HR 制度文件写入证据层</h2>
+          <h2>把工程规范和运行手册写入证据层</h2>
         </div>
         <el-tag effect="plain">.md / .txt / .pdf / .docx / .xlsx / .pptx</el-tag>
       </header>
@@ -98,7 +98,7 @@ onUnmounted(() => {
             <el-input v-model="tenantId" placeholder="tenant_001" />
           </el-form-item>
           <el-form-item label="Department ID">
-            <el-input v-model="departmentId" placeholder="dept_hr" />
+            <el-input v-model="departmentId" placeholder="dept_engineering" />
           </el-form-item>
           <el-form-item label="Visibility">
             <el-segmented

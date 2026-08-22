@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.devmate.cases.command import CaseCommand, DM04Input, DM04Result
-from app.devmate.cases.state import CaseStatus, IllegalTransitionError, LEGAL_TRANSITIONS
+from app.devmate.cases.state import LEGAL_TRANSITIONS, CaseStatus, IllegalTransitionError
 from app.devmate.cases.store import (
     CaseNotFoundError,
     CaseRecord,
@@ -13,6 +13,7 @@ from app.devmate.cases.store import (
 )
 
 __all__ = [
+    "LEGAL_TRANSITIONS",
     "CaseCommand",
     "CaseNotFoundError",
     "CaseRecord",
@@ -22,6 +23,5 @@ __all__ = [
     "DM04Result",
     "DuplicateCaseError",
     "IllegalTransitionError",
-    "LEGAL_TRANSITIONS",
     "TimelineEvent",
 ]

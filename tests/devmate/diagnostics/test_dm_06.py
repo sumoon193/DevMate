@@ -7,9 +7,9 @@
 from __future__ import annotations
 
 from app.devmate.diagnostics import (
+    DiagnosticsCheckpoint,
     DM06Input,
     DM06Result,
-    DiagnosticsCheckpoint,
 )
 
 
@@ -41,9 +41,7 @@ def test_fixed_log_produces_repeatable_findings() -> None:
 
 
 def test_error_and_warning_lines_are_found() -> None:
-    result = DiagnosticsCheckpoint().execute(
-        _input(log_text="INFO ok\nERROR boom\nWARN slow\n")
-    )
+    result = DiagnosticsCheckpoint().execute(_input(log_text="INFO ok\nERROR boom\nWARN slow\n"))
 
     severities = {finding.severity for finding in result.findings}
     assert "error" in severities
@@ -52,9 +50,7 @@ def test_error_and_warning_lines_are_found() -> None:
 
 
 def test_test_report_failures_are_found() -> None:
-    result = DiagnosticsCheckpoint().execute(
-        _input(report_text="tests.py:12 FAILED test_a\n")
-    )
+    result = DiagnosticsCheckpoint().execute(_input(report_text="tests.py:12 FAILED test_a\n"))
 
     assert any(finding.rule == "report_failure" for finding in result.findings)
 

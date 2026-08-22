@@ -7,12 +7,13 @@ Grounded Answer 服务单元测试。
 - test_low_confidence_refuses_or_clarifies
 - test_fact_check_rejects_unsupported_claim
 """
+
 from __future__ import annotations
 
 import pytest
 
-from app.schemas.chunk import Citation, EvidenceBundle
 from app.schemas.chat import AnswerResponse
+from app.schemas.chunk import Citation, EvidenceBundle
 from app.services.answer.citation_builder import CitationBuilder
 from app.services.answer.fact_checker import FactChecker
 from app.services.answer.grounded_answer import FakeAnswerGenerator, GroundedAnswerService
@@ -20,7 +21,6 @@ from app.services.answer.low_confidence import (
     LowConfidenceAction,
     LowConfidenceHandler,
 )
-
 
 # ── Fixtures ────────────────────────────────────────────────────────
 
@@ -54,10 +54,12 @@ def _make_evidence(citations: list[Citation], coverage: float = 0.8) -> Evidence
 
 @pytest.fixture
 def sample_evidence() -> EvidenceBundle:
-    return _make_evidence([
-        _make_citation(1, "新员工入职需提交身份证复印件、学历证书、离职证明和一寸照片。"),
-        _make_citation(2, "试用期为三个月，自入职之日起计算。", section="试用期管理"),
-    ])
+    return _make_evidence(
+        [
+            _make_citation(1, "新员工入职需提交身份证复印件、学历证书、离职证明和一寸照片。"),
+            _make_citation(2, "试用期为三个月，自入职之日起计算。", section="试用期管理"),
+        ]
+    )
 
 
 @pytest.fixture
@@ -84,11 +86,13 @@ def answer_service() -> GroundedAnswerService:
 class TestCitationBuilder:
     def test_build_returns_sorted_by_rerank_score(self) -> None:
         builder = CitationBuilder()
-        evidence = _make_evidence([
-            _make_citation(1, "低分证据", rerank=0.3),
-            _make_citation(2, "高分证据", rerank=0.9),
-            _make_citation(3, "中分证据", rerank=0.6),
-        ])
+        evidence = _make_evidence(
+            [
+                _make_citation(1, "低分证据", rerank=0.3),
+                _make_citation(2, "高分证据", rerank=0.9),
+                _make_citation(3, "中分证据", rerank=0.6),
+            ]
+        )
         citations = builder.build(evidence)
         assert len(citations) == 3
         assert citations[0].chunk_text == "高分证据"
@@ -97,20 +101,21 @@ class TestCitationBuilder:
 
     def test_build_renumbers_from_one(self) -> None:
         builder = CitationBuilder()
-        evidence = _make_evidence([
-            _make_citation(10, "证据A", rerank=0.9),
-            _make_citation(20, "证据B", rerank=0.7),
-        ])
+        evidence = _make_evidence(
+            [
+                _make_citation(10, "证据A", rerank=0.9),
+                _make_citation(20, "证据B", rerank=0.7),
+            ]
+        )
         citations = builder.build(evidence)
         assert citations[0].id == 1
         assert citations[1].id == 2
 
     def test_build_respects_max_citations(self) -> None:
         builder = CitationBuilder()
-        evidence = _make_evidence([
-            _make_citation(i, f"证据{i}", rerank=0.9 - i * 0.01)
-            for i in range(1, 11)
-        ])
+        evidence = _make_evidence(
+            [_make_citation(i, f"证据{i}", rerank=0.9 - i * 0.01) for i in range(1, 11)]
+        )
         citations = builder.build(evidence, max_citations=3)
         assert len(citations) == 3
 
@@ -189,18 +194,23 @@ class TestLowConfidenceHandler:
 
     def test_low_confidence_clarifies_on_conflict(self) -> None:
         handler = LowConfidenceHandler()
-        evidence = _make_evidence([
-            _make_citation(1, "高分证据", rerank=0.95),
-            _make_citation(2, "低分证据", rerank=0.1),
-        ])
+        evidence = _make_evidence(
+            [
+                _make_citation(1, "高分证据", rerank=0.95),
+                _make_citation(2, "低分证据", rerank=0.1),
+            ]
+        )
         verdict = handler.evaluate(evidence=evidence, question="有争议的问题")
         assert verdict.action == LowConfidenceAction.CLARIFY
 
     def test_proceeds_with_good_evidence(self) -> None:
         handler = LowConfidenceHandler()
-        evidence = _make_evidence([
-            _make_citation(1, "高质量证据", rerank=0.9),
-        ], coverage=0.9)
+        evidence = _make_evidence(
+            [
+                _make_citation(1, "高质量证据", rerank=0.9),
+            ],
+            coverage=0.9,
+        )
         verdict = handler.evaluate(evidence=evidence, question="正常问题")
         assert verdict.action == LowConfidenceAction.PROCEED
 

@@ -4,6 +4,7 @@
 模块 08 — 必测用例：
 - test_eval_runner_reports_rag_and_agent_metrics
 """
+
 from __future__ import annotations
 
 import json
@@ -17,7 +18,6 @@ from app.services.answer.grounded_answer import GroundedAnswerService
 from app.services.evaluation.agent_metrics import compute_agent_metrics
 from app.services.evaluation.eval_runner import EvalRunner
 from app.services.evaluation.ragas_adapter import FakeRAGASMetrics
-
 
 # ── Fixtures ────────────────────────────────────────────────────────
 
@@ -57,9 +57,10 @@ def golden_dataset_path() -> Path:
 
 
 class TestFakeRAGASMetrics:
-    def test_returns_all_metrics(self) -> None:
+    @pytest.mark.asyncio
+    async def test_returns_all_metrics(self) -> None:
         ragas = FakeRAGASMetrics()
-        metrics = ragas.compute(
+        metrics = await ragas.compute(
             question="入职需要什么材料？",
             answer="入职需要身份证和学历证书。",
             contexts=["新员工入职需提交身份证复印件和学历证书。"],
@@ -72,9 +73,10 @@ class TestFakeRAGASMetrics:
         for v in metrics.values():
             assert 0.0 <= v <= 1.0
 
-    def test_empty_contexts_returns_zeros(self) -> None:
+    @pytest.mark.asyncio
+    async def test_empty_contexts_returns_zeros(self) -> None:
         ragas = FakeRAGASMetrics()
-        metrics = ragas.compute(
+        metrics = await ragas.compute(
             question="任何问题",
             answer="任何答案",
             contexts=[],
@@ -83,10 +85,11 @@ class TestFakeRAGASMetrics:
         assert metrics["context_precision"] == 0.0
         assert metrics["context_recall"] == 0.0
 
-    def test_deterministic_output(self) -> None:
+    @pytest.mark.asyncio
+    async def test_deterministic_output(self) -> None:
         ragas = FakeRAGASMetrics()
         args = ("问题", "答案", ["上下文"], "标准答案")
-        assert ragas.compute(*args) == ragas.compute(*args)
+        assert await ragas.compute(*args) == await ragas.compute(*args)
 
 
 # ── Agent Metrics 测试 ─────────────────────────────────────────────
@@ -100,7 +103,11 @@ class TestAgentMetrics:
 
     def test_tool_call_accuracy_all_correct(self) -> None:
         cases = [
-            {"expected_tools": ["policy_search"], "actual_tools": ["policy_search"], "goal_completed": True},
+            {
+                "expected_tools": ["policy_search"],
+                "actual_tools": ["policy_search"],
+                "goal_completed": True,
+            },
             {"expected_tools": [], "actual_tools": [], "goal_completed": True},
         ]
         result = compute_agent_metrics(cases)
@@ -109,8 +116,16 @@ class TestAgentMetrics:
 
     def test_tool_call_accuracy_partial(self) -> None:
         cases = [
-            {"expected_tools": ["policy_search"], "actual_tools": ["policy_search"], "goal_completed": True},
-            {"expected_tools": ["policy_search"], "actual_tools": ["wrong_tool"], "goal_completed": False},
+            {
+                "expected_tools": ["policy_search"],
+                "actual_tools": ["policy_search"],
+                "goal_completed": True,
+            },
+            {
+                "expected_tools": ["policy_search"],
+                "actual_tools": ["wrong_tool"],
+                "goal_completed": False,
+            },
         ]
         result = compute_agent_metrics(cases)
         assert result.tool_call_accuracy == 0.5
@@ -118,16 +133,36 @@ class TestAgentMetrics:
 
     def test_approval_correctness(self) -> None:
         cases = [
-            {"expected_tools": [], "actual_tools": [], "requires_approval": True, "approval_granted": True},
-            {"expected_tools": [], "actual_tools": [], "requires_approval": True, "approval_granted": False},
+            {
+                "expected_tools": [],
+                "actual_tools": [],
+                "requires_approval": True,
+                "approval_granted": True,
+            },
+            {
+                "expected_tools": [],
+                "actual_tools": [],
+                "requires_approval": True,
+                "approval_granted": False,
+            },
         ]
         result = compute_agent_metrics(cases)
         assert result.approval_correctness == 0.5
 
     def test_refusal_correctness(self) -> None:
         cases = [
-            {"expected_tools": [], "actual_tools": [], "expected_refusal": True, "actual_refused": True},
-            {"expected_tools": [], "actual_tools": [], "expected_refusal": True, "actual_refused": False},
+            {
+                "expected_tools": [],
+                "actual_tools": [],
+                "expected_refusal": True,
+                "actual_refused": True,
+            },
+            {
+                "expected_tools": [],
+                "actual_tools": [],
+                "expected_refusal": True,
+                "actual_refused": False,
+            },
         ]
         result = compute_agent_metrics(cases)
         assert result.refusal_correctness == 0.5
@@ -175,7 +210,12 @@ class TestEvalRunner:
             assert 0.0 <= eval_run.metrics[metric] <= 1.0
 
         # Agent 指标存在
-        for metric in ["tool_call_accuracy", "approval_correctness", "agent_goal_completion_rate", "refusal_correctness"]:
+        for metric in [
+            "tool_call_accuracy",
+            "approval_correctness",
+            "agent_goal_completion_rate",
+            "refusal_correctness",
+        ]:
             assert metric in eval_run.metrics
 
     @pytest.mark.asyncio
@@ -185,18 +225,24 @@ class TestEvalRunner:
     ) -> None:
         # 创建临时 JSONL
         with tempfile.NamedTemporaryFile(
-            mode='w', suffix='.jsonl', delete=False, encoding='utf-8'
+            mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
         ) as f:
-            f.write(json.dumps({
-                "id": "eval_custom_001",
-                "question": "测试问题",
-                "answer": "测试答案",
-                "contexts": ["测试上下文：包含相关信息"],
-                "ground_truth_docs": ["测试文档"],
-                "ground_truth_sections": ["测试章节"],
-                "expected_tools": [],
-                "requires_approval": False,
-            }, ensure_ascii=False) + '\n')
+            f.write(
+                json.dumps(
+                    {
+                        "id": "eval_custom_001",
+                        "question": "测试问题",
+                        "answer": "测试答案",
+                        "contexts": ["测试上下文：包含相关信息"],
+                        "ground_truth_docs": ["测试文档"],
+                        "ground_truth_sections": ["测试章节"],
+                        "expected_tools": [],
+                        "requires_approval": False,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
             tmp_path = f.name
 
         runner = EvalRunner(answer_service=answer_service)
@@ -206,4 +252,5 @@ class TestEvalRunner:
         assert len(eval_run.metrics) > 0
 
         import os
+
         os.unlink(tmp_path)

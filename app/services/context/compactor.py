@@ -1,10 +1,11 @@
 """遵循 write/select/compress/isolate 的结构化上下文压缩。"""
+
 from __future__ import annotations
 
 import hashlib
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.core.exceptions import ValidationError
 from app.schemas.memory import ContextSnapshot
@@ -58,9 +59,7 @@ class ContextCompactor:
                 if event.event_type in {"tool.failed", "run.failed"}
             ],
         }
-        pinned = [
-            event.id for event in events if event.event_type in self._PINNED_EVENT_TYPES
-        ]
+        pinned = [event.id for event in events if event.event_type in self._PINNED_EVENT_TYPES]
         before = self._estimate_tokens([event.model_dump(mode="json") for event in safe_prefix])
         after = self._estimate_tokens(summary)
         invariant_hash = hashlib.sha256(
@@ -79,7 +78,7 @@ class ContextCompactor:
             selector_version=selector_version,
             invariant_hash=invariant_hash,
             invariant_check_passed=self._validate_invariants(safe_prefix, summary),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
     @staticmethod

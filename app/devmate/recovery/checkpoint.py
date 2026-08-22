@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from app.devmate.recovery.store import LeaseConflictError, RecoveryStore
+from app.devmate.recovery.store import RecoveryStore
 from app.devmate.recovery.types import DM12Input, DM12Result
 
 

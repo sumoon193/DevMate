@@ -4,6 +4,7 @@ OpenTelemetry Trace 导出器。
 将 trace/span 数据导出到 OTel Collector 或 Phoenix。
 full 模式使用；fallback 模式使用 log_exporter。
 """
+
 from __future__ import annotations
 
 import logging
@@ -27,9 +28,12 @@ class OTelTraceExporter:
         self,
         endpoint: str = "http://localhost:6006",
         service_name: str = "enterprisemind",
+        *,
+        strict: bool = False,
     ) -> None:
         self._endpoint = endpoint.rstrip("/")
         self._service_name = service_name
+        self._strict = strict
         self._tracer: Any = None
         self._initialized = False
 
@@ -37,6 +41,11 @@ class OTelTraceExporter:
     def endpoint(self) -> str:
         """OTLP/Phoenix endpoint，用于健康检查和测试断言。"""
         return self._endpoint
+
+    @property
+    def strict(self) -> bool:
+        """生产装配为 True，初始化或导出失败时禁止静默吞错。"""
+        return self._strict
 
     def _ensure_init(self) -> None:
         """延迟初始化 OTel SDK（避免 import 时阻塞）。"""
@@ -46,10 +55,12 @@ class OTelTraceExporter:
 
         try:
             from opentelemetry import trace
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+                OTLPSpanExporter,
+            )
+            from opentelemetry.sdk.resources import Resource
             from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.trace.export import BatchSpanProcessor
-            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-            from opentelemetry.sdk.resources import Resource
 
             resource = Resource.create({"service.name": self._service_name})
             provider = TracerProvider(resource=resource)
@@ -63,10 +74,14 @@ class OTelTraceExporter:
 
             logger.info("otel_exporter_initialized", extra={"endpoint": self._endpoint})
 
-        except ImportError:
+        except ImportError as exc:
             logger.warning("otel_sdk_not_installed_traces_disabled")
+            if self._strict:
+                raise RuntimeError("OTel SDK is required in full mode") from exc
         except Exception as e:
             logger.warning("otel_init_failed", extra={"error": str(e)})
+            if self._strict:
+                raise RuntimeError("OTel exporter initialization failed") from e
 
     def export(self, spans: list[Span], context: TraceContext) -> None:
         """将 spans 导出到 OTel Collector。"""
@@ -80,8 +95,12 @@ class OTelTraceExporter:
                 attributes = {
                     "trace_id": context.trace_id,
                     "span_id": span_data.span_id,
-                    "span_type": span_data.span_type.value if hasattr(span_data.span_type, "value") else str(span_data.span_type),
-                    "status": span_data.status.value if hasattr(span_data.status, "value") else str(span_data.status),
+                    "span_type": span_data.span_type.value
+                    if hasattr(span_data.span_type, "value")
+                    else str(span_data.span_type),
+                    "status": span_data.status.value
+                    if hasattr(span_data.status, "value")
+                    else str(span_data.status),
                 }
                 for key, value in span_data.attributes.items():
                     if isinstance(value, (str, int, float, bool)) or value is None:
@@ -102,3 +121,5 @@ class OTelTraceExporter:
 
         except Exception as e:
             logger.warning("otel_export_failed", extra={"error": str(e)})
+            if self._strict:
+                raise RuntimeError("OTel trace export failed") from e

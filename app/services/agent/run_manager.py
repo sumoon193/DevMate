@@ -3,12 +3,12 @@ Agent Run Manager。
 
 管理 Agent Run 的完整生命周期。
 """
+
 from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import AsyncGenerator
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -116,7 +116,9 @@ class AgentRunManager:
                     parameters=approval.parameters,
                     expected_effect=approval.expected_effect,
                     evidence=approval.evidence,
-                    risk_level=approval.risk_level.value if hasattr(approval.risk_level, "value") else str(approval.risk_level),
+                    risk_level=approval.risk_level.value
+                    if hasattr(approval.risk_level, "value")
+                    else str(approval.risk_level),
                     status=approval.status,
                     decision=approval.decision,
                     decided_by=approval.decided_by,
@@ -135,11 +137,7 @@ class AgentRunManager:
                     revoke_reason=approval.revoke_reason,
                 )
 
-    async def create_run(
-        self,
-        query: str,
-        user_context: UserContext
-    ) -> AgentRunResponse:
+    async def create_run(self, query: str, user_context: UserContext) -> AgentRunResponse:
         """
         创建新的 Agent Run。
 
@@ -162,8 +160,8 @@ class AgentRunManager:
             steps=[],
             tool_calls=[],
             result=None,
-            created_at=datetime.now(timezone.utc),
-            completed_at=None
+            created_at=datetime.now(UTC),
+            completed_at=None,
         )
 
         self._runs[run_id] = run
@@ -173,13 +171,10 @@ class AgentRunManager:
             run_id=run_id,
             node_name="run_created",
             input_data={"query": query, "user_id": user_context.user_id},
-            output_data={"run_id": run_id, "thread_id": thread_id}
+            output_data={"run_id": run_id, "thread_id": thread_id},
         )
 
-        logger.info(
-            "run_created",
-            extra={"run_id": run_id, "user_id": user_context.user_id}
-        )
+        logger.info("run_created", extra={"run_id": run_id, "user_id": user_context.user_id})
 
         await self._persist_run_snapshot(run_id)
         return run
@@ -206,18 +201,14 @@ class AgentRunManager:
             run_id=run_id,
             node_name="run_started",
             input_data={"run_id": run_id},
-            output_data={"status": RunStatus.RUNNING.value}
+            output_data={"status": RunStatus.RUNNING.value},
         )
 
         logger.info("run_started", extra={"run_id": run_id})
 
         return run
 
-    async def retrieve_evidence(
-        self,
-        run_id: str,
-        evidence: EvidenceBundle
-    ) -> AgentRunResponse:
+    async def retrieve_evidence(self, run_id: str, evidence: EvidenceBundle) -> AgentRunResponse:
         """
         检索证据。
 
@@ -242,23 +233,18 @@ class AgentRunManager:
             input_data={"run_id": run_id},
             output_data={
                 "citation_count": evidence.total_count,
-                "query_coverage": evidence.query_coverage_score
+                "query_coverage": evidence.query_coverage_score,
             },
-            evidence=[c.model_dump() for c in evidence.evidence_list]
+            evidence=[c.model_dump() for c in evidence.evidence_list],
         )
 
         logger.info(
-            "evidence_retrieved",
-            extra={"run_id": run_id, "citation_count": evidence.total_count}
+            "evidence_retrieved", extra={"run_id": run_id, "citation_count": evidence.total_count}
         )
 
         return run
 
-    async def create_plan(
-        self,
-        run_id: str,
-        plan: AgentPlan
-    ) -> AgentRunResponse:
+    async def create_plan(self, run_id: str, plan: AgentPlan) -> AgentRunResponse:
         """
         创建执行计划。
 
@@ -284,23 +270,19 @@ class AgentRunManager:
             output_data={
                 "plan_id": plan.id,
                 "steps": plan.steps,
-                "current_step_index": plan.current_step_index
-            }
+                "current_step_index": plan.current_step_index,
+            },
         )
 
         logger.info(
             "plan_created",
-            extra={"run_id": run_id, "plan_id": plan.id, "step_count": len(plan.steps)}
+            extra={"run_id": run_id, "plan_id": plan.id, "step_count": len(plan.steps)},
         )
 
         return run
 
     async def execute_tool(
-        self,
-        run_id: str,
-        tool_name: str,
-        parameters: dict[str, Any],
-        user_context: UserContext
+        self, run_id: str, tool_name: str, parameters: dict[str, Any], user_context: UserContext
     ) -> ToolCall:
         """
         执行工具。
@@ -318,10 +300,7 @@ class AgentRunManager:
 
         # 执行工具
         tool_call = await self._tool_executor.execute(
-            run_id=run_id,
-            tool_name=tool_name,
-            parameters=parameters,
-            user_context=user_context
+            run_id=run_id, tool_name=tool_name, parameters=parameters, user_context=user_context
         )
         self._upsert_tool_call(run, tool_call)
 
@@ -336,7 +315,7 @@ class AgentRunManager:
         run_id: str,
         approval_id: str,
         approval_decision: ApprovalDecision,
-        user_context: UserContext
+        user_context: UserContext,
     ) -> ApprovalRequest:
         """
         应用人工审批决策。
@@ -352,9 +331,7 @@ class AgentRunManager:
         """
         request = self._approval_manager.get_request(approval_id)
         if request.run_id != run_id:
-            raise ValidationError(
-                f"Approval request {approval_id} does not belong to run {run_id}"
-            )
+            raise ValidationError(f"Approval request {approval_id} does not belong to run {run_id}")
 
         if request.status != ApprovalStatus.PENDING:
             return request
@@ -369,7 +346,7 @@ class AgentRunManager:
             return self._approval_manager.edit_and_approve(
                 approval_id=approval_id,
                 edited_parameters=edited_parameters,
-                decided_by=user_context.user_id
+                decided_by=user_context.user_id,
             )
 
         return self._approval_manager.reject(approval_id, user_context.user_id)
@@ -462,10 +439,7 @@ class AgentRunManager:
         return await self.execute_approved_tool(run_id, approval.id, user_context)
 
     async def execute_approved_tool(
-        self,
-        run_id: str,
-        approval_id: str,
-        user_context: UserContext
+        self, run_id: str, approval_id: str, user_context: UserContext
     ) -> ToolCall:
         """
         执行已审批通过的工具。
@@ -481,13 +455,9 @@ class AgentRunManager:
         run = self._get_run(run_id)
         approval_request = self._approval_manager.get_request(approval_id)
         if approval_request.run_id != run_id:
-            raise ValidationError(
-                f"Approval request {approval_id} does not belong to run {run_id}"
-            )
+            raise ValidationError(f"Approval request {approval_id} does not belong to run {run_id}")
         if approval_request.status != ApprovalStatus.APPROVED:
-            raise ValidationError(
-                f"Approval request {approval_id} is not approved"
-            )
+            raise ValidationError(f"Approval request {approval_id} is not approved")
 
         if run.status == RunStatus.AWAITING_APPROVAL:
             self._state_machine.validate_transition(run.status, RunStatus.RESUMED)
@@ -497,7 +467,7 @@ class AgentRunManager:
             run_id=run_id,
             tool_call_id=approval_request.tool_call_id,
             approval_id=approval_id,
-            user_context=user_context
+            user_context=user_context,
         )
         self._upsert_tool_call(run, tool_call)
 
@@ -505,24 +475,14 @@ class AgentRunManager:
             run_id=run_id,
             node_name="run_resumed_after_approval",
             input_data={"run_id": run_id, "approval_id": approval_id},
-            output_data={
-                "tool_call_id": tool_call.id,
-                "status": tool_call.status.value
-            }
+            output_data={"tool_call_id": tool_call.id, "status": tool_call.status.value},
         )
 
-        logger.info(
-            "approved_tool_executed",
-            extra={"run_id": run_id, "approval_id": approval_id}
-        )
+        logger.info("approved_tool_executed", extra={"run_id": run_id, "approval_id": approval_id})
 
         return tool_call
 
-    async def mark_resumed_without_tool(
-        self,
-        run_id: str,
-        reason: str
-    ) -> AgentRunResponse:
+    async def mark_resumed_without_tool(self, run_id: str, reason: str) -> AgentRunResponse:
         """
         在不执行工具的情况下恢复 Run。
 
@@ -537,16 +497,13 @@ class AgentRunManager:
             run_id=run_id,
             node_name="run_resumed_without_tool",
             input_data={"run_id": run_id},
-            output_data={"reason": reason}
+            output_data={"reason": reason},
         )
 
         return run
 
     async def resume_after_approval(
-        self,
-        run_id: str,
-        approval_id: str,
-        user_context: UserContext
+        self, run_id: str, approval_id: str, user_context: UserContext
     ) -> AgentRunResponse:
         """
         审批后恢复执行。
@@ -568,11 +525,7 @@ class AgentRunManager:
 
         return run
 
-    async def complete_run(
-        self,
-        run_id: str,
-        result: dict[str, Any]
-    ) -> AgentRunResponse:
+    async def complete_run(self, run_id: str, result: dict[str, Any]) -> AgentRunResponse:
         """
         完成 Agent Run。
 
@@ -590,14 +543,14 @@ class AgentRunManager:
 
         run.status = RunStatus.COMPLETED
         run.result = result
-        run.completed_at = datetime.now(timezone.utc)
+        run.completed_at = datetime.now(UTC)
 
         # 记录步骤
         self._step_logger.log_step(
             run_id=run_id,
             node_name="run_completed",
             input_data={"run_id": run_id},
-            output_data={"result": result}
+            output_data={"result": result},
         )
 
         logger.info("run_completed", extra={"run_id": run_id})
@@ -605,11 +558,7 @@ class AgentRunManager:
         await self._persist_run_snapshot(run_id)
         return run
 
-    async def fail_run(
-        self,
-        run_id: str,
-        error: str
-    ) -> AgentRunResponse:
+    async def fail_run(self, run_id: str, error: str) -> AgentRunResponse:
         """
         标记 Agent Run 失败。
 
@@ -627,14 +576,14 @@ class AgentRunManager:
 
         run.status = RunStatus.FAILED
         run.result = {"error": error}
-        run.completed_at = datetime.now(timezone.utc)
+        run.completed_at = datetime.now(UTC)
 
         # 记录步骤
         self._step_logger.log_step(
             run_id=run_id,
             node_name="run_failed",
             input_data={"run_id": run_id},
-            output_data={"error": error}
+            output_data={"error": error},
         )
 
         logger.error("run_failed", extra={"run_id": run_id, "error": error})
@@ -658,14 +607,14 @@ class AgentRunManager:
         self._state_machine.validate_transition(run.status, RunStatus.CANCELLED)
 
         run.status = RunStatus.CANCELLED
-        run.completed_at = datetime.now(timezone.utc)
+        run.completed_at = datetime.now(UTC)
 
         # 记录步骤
         self._step_logger.log_step(
             run_id=run_id,
             node_name="run_cancelled",
             input_data={"run_id": run_id},
-            output_data={"status": RunStatus.CANCELLED.value}
+            output_data={"status": RunStatus.CANCELLED.value},
         )
 
         logger.info("run_cancelled", extra={"run_id": run_id})
@@ -690,6 +639,7 @@ class AgentRunManager:
 
         if self._session_factory is not None:
             from app.db import crud as db
+
             async with self._session_factory() as session:
                 orm_run = await db.get_run(session, run_id)
                 if orm_run is not None:

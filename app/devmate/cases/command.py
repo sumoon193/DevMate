@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.devmate.cases.state import CaseStatus, IllegalTransitionError, LEGAL_TRANSITIONS
+from app.devmate.cases.state import LEGAL_TRANSITIONS, CaseStatus, IllegalTransitionError
 from app.devmate.cases.store import CaseNotFoundError, CaseStore
 
 
@@ -46,8 +46,7 @@ class CaseCommand:
             raise CaseNotFoundError(input_.case_id)
         if input_.target_status not in LEGAL_TRANSITIONS[record.status]:
             raise IllegalTransitionError(
-                f"illegal transition {record.status.value} -> "
-                f"{input_.target_status.value}"
+                f"illegal transition {record.status.value} -> {input_.target_status.value}"
             )
         new_record = self._store.advance(
             case_id=input_.case_id,
@@ -62,8 +61,7 @@ class CaseCommand:
             status=new_record.status,
             command_id=input_.command_id,
             state_event=(
-                f"case {input_.case_id} {record.status.value} -> "
-                f"{new_record.status.value}"
+                f"case {input_.case_id} {record.status.value} -> {new_record.status.value}"
             ),
             audit_info={
                 "event_type": input_.event_type,

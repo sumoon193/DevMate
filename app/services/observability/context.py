@@ -3,9 +3,10 @@ Trace 上下文。
 
 管理 Trace 的上下文信息。
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.services.observability.span import Span
@@ -35,7 +36,7 @@ class TraceContext:
         self.event_id = event_id
         self.spans: list[Span] = []
         self.current_span: Span | None = None
-        self.created_at: datetime = datetime.now(timezone.utc)
+        self.created_at: datetime = datetime.now(UTC)
 
     def add_span(self, span: Span) -> None:
         """添加 Span 到上下文。"""
@@ -74,5 +75,5 @@ class TraceContext:
             "case_id": self.case_id,
             "event_id": self.event_id,
             "span_count": len(self.spans),
-            "created_at": self.created_at.isoformat()
+            "created_at": self.created_at.isoformat(),
         }

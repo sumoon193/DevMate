@@ -9,6 +9,7 @@ Retrieval 测试。
 5. test_reranker_reorders_candidates
 6. test_evidence_bundle_contains_citations
 """
+
 from __future__ import annotations
 
 import pytest
@@ -37,7 +38,7 @@ def acl_filter() -> ACLFilter:
     return ACLFilter(
         tenant_id="tenant_hr",
         department_ids=["dept_001", "dept_002"],
-        allowed_visibility=[Visibility.PUBLIC, Visibility.DEPARTMENT]
+        allowed_visibility=[Visibility.PUBLIC, Visibility.DEPARTMENT],
     )
 
 
@@ -58,7 +59,7 @@ def sample_chunks() -> list[ChunkCreate]:
             tenant_id="tenant_hr",
             department_id="dept_001",
             visibility=Visibility.DEPARTMENT,
-            acl_metadata={"author": "HR"}
+            acl_metadata={"author": "HR"},
         ),
         ChunkCreate(
             document_id="doc_001",
@@ -73,7 +74,7 @@ def sample_chunks() -> list[ChunkCreate]:
             tenant_id="tenant_hr",
             department_id="dept_001",
             visibility=Visibility.DEPARTMENT,
-            acl_metadata={"author": "HR"}
+            acl_metadata={"author": "HR"},
         ),
         ChunkCreate(
             document_id="doc_002",
@@ -88,7 +89,7 @@ def sample_chunks() -> list[ChunkCreate]:
             tenant_id="tenant_hr",
             department_id="dept_002",
             visibility=Visibility.DEPARTMENT,
-            acl_metadata={"author": "HR"}
+            acl_metadata={"author": "HR"},
         ),
         ChunkCreate(
             document_id="doc_003",
@@ -103,7 +104,7 @@ def sample_chunks() -> list[ChunkCreate]:
             tenant_id="tenant_hr",
             department_id="dept_001",
             visibility=Visibility.CONFIDENTIAL,
-            acl_metadata={"author": "CEO"}
+            acl_metadata={"author": "CEO"},
         ),
     ]
 
@@ -148,10 +149,7 @@ class TestACLFilter:
 
     @pytest.mark.asyncio
     async def test_in_memory_retrieval_returns_acl_filtered_hits(
-        self,
-        mock_embedder: MockEmbedder,
-        acl_filter: ACLFilter,
-        sample_chunks: list[ChunkCreate]
+        self, mock_embedder: MockEmbedder, acl_filter: ACLFilter, sample_chunks: list[ChunkCreate]
     ):
         """测试 1：In-memory 检索返回 ACL 过滤后的结果。"""
         vector_store = InMemoryVectorStore()
@@ -165,9 +163,7 @@ class TestACLFilter:
         query = "入职材料"
         query_embedding = await mock_embedder.embed_query(query)
         results = await vector_store.search(
-            query_embedding=query_embedding,
-            acl_filter=acl_filter,
-            top_k=10
+            query_embedding=query_embedding, acl_filter=acl_filter, top_k=10
         )
 
         # 验证结果
@@ -185,9 +181,7 @@ class TestACLFilter:
 
     @pytest.mark.asyncio
     async def test_acl_filter_by_tenant(
-        self,
-        mock_embedder: MockEmbedder,
-        sample_chunks: list[ChunkCreate]
+        self, mock_embedder: MockEmbedder, sample_chunks: list[ChunkCreate]
     ):
         """测试 ACL 按租户过滤。"""
         vector_store = InMemoryVectorStore()
@@ -201,15 +195,13 @@ class TestACLFilter:
         wrong_acl = ACLFilter(
             tenant_id="tenant_eng",  # 错误的租户
             department_ids=["dept_001"],
-            allowed_visibility=[Visibility.PUBLIC, Visibility.DEPARTMENT]
+            allowed_visibility=[Visibility.PUBLIC, Visibility.DEPARTMENT],
         )
 
         query = "入职"
         query_embedding = await mock_embedder.embed_query(query)
         results = await vector_store.search(
-            query_embedding=query_embedding,
-            acl_filter=wrong_acl,
-            top_k=10
+            query_embedding=query_embedding, acl_filter=wrong_acl, top_k=10
         )
 
         # 验证没有结果
@@ -217,8 +209,7 @@ class TestACLFilter:
 
     @pytest.mark.asyncio
     async def test_retrieval_allows_public_chunks_across_departments(
-        self,
-        mock_embedder: MockEmbedder
+        self, mock_embedder: MockEmbedder
     ):
         """测试：检索前 ACL 应允许同租户 public chunk 跨部门命中。"""
         public_chunk = ChunkCreate(
@@ -226,12 +217,12 @@ class TestACLFilter:
             chunk_text="全员公告：入职培训将在周五举行。",
             tenant_id="tenant_hr",
             department_id="dept_public",
-            visibility=Visibility.PUBLIC
+            visibility=Visibility.PUBLIC,
         )
         acl_filter = ACLFilter(
             tenant_id="tenant_hr",
             department_ids=["dept_001"],
-            allowed_visibility=[Visibility.PUBLIC, Visibility.DEPARTMENT]
+            allowed_visibility=[Visibility.PUBLIC, Visibility.DEPARTMENT],
         )
         vector_store = InMemoryVectorStore()
         bm25_store = InMemoryBM25Store()
@@ -242,15 +233,9 @@ class TestACLFilter:
 
         query_embedding = await mock_embedder.embed_query("入职培训")
         dense_results = await vector_store.search(
-            query_embedding=query_embedding,
-            acl_filter=acl_filter,
-            top_k=10
+            query_embedding=query_embedding, acl_filter=acl_filter, top_k=10
         )
-        sparse_results = await bm25_store.search(
-            query="入职培训",
-            acl_filter=acl_filter,
-            top_k=10
-        )
+        sparse_results = await bm25_store.search(query="入职培训", acl_filter=acl_filter, top_k=10)
 
         assert [r.document_id for r in dense_results] == ["doc_public"]
         assert [r.document_id for r in sparse_results] == ["doc_public"]
@@ -261,10 +246,7 @@ class TestRRFFusion:
 
     @pytest.mark.asyncio
     async def test_dense_and_sparse_results_are_fused_by_rrf(
-        self,
-        mock_embedder: MockEmbedder,
-        acl_filter: ACLFilter,
-        sample_chunks: list[ChunkCreate]
+        self, mock_embedder: MockEmbedder, acl_filter: ACLFilter, sample_chunks: list[ChunkCreate]
     ):
         """测试 2：Dense 和 Sparse 结果通过 RRF 融合。"""
         vector_store = InMemoryVectorStore()
@@ -281,17 +263,11 @@ class TestRRFFusion:
         query = "入职材料"
         query_embedding = await mock_embedder.embed_query(query)
         dense_results = await vector_store.search(
-            query_embedding=query_embedding,
-            acl_filter=acl_filter,
-            top_k=10
+            query_embedding=query_embedding, acl_filter=acl_filter, top_k=10
         )
 
         # Sparse search
-        sparse_results = await bm25_store.search(
-            query=query,
-            acl_filter=acl_filter,
-            top_k=10
-        )
+        sparse_results = await bm25_store.search(query=query, acl_filter=acl_filter, top_k=10)
 
         # RRF fusion
         fused_results = rrf.fuse(dense_results, sparse_results, top_k=10)
@@ -305,8 +281,9 @@ class TestRRFFusion:
         fused_ids = {r.chunk_id for r in fused_results}
 
         # 融合结果应该包含两种检索的结果
-        assert len(fused_ids) >= min(len(dense_ids), len(sparse_ids)), \
+        assert len(fused_ids) >= min(len(dense_ids), len(sparse_ids)), (
             "Fused results should include results from both retrieval methods"
+        )
 
     def test_rrf_formula_correctness(self):
         """测试 RRF 公式正确性。"""
@@ -315,27 +292,47 @@ class TestRRFFusion:
         # 创建测试结果
         results_a = [
             RetrievalResult(
-                chunk_id="chunk_1", document_id="doc_1", chunk_text="test1",
-                score=0.9, rerank_score=0.0, tenant_id="t", department_id="d",
-                visibility=Visibility.PUBLIC
+                chunk_id="chunk_1",
+                document_id="doc_1",
+                chunk_text="test1",
+                score=0.9,
+                rerank_score=0.0,
+                tenant_id="t",
+                department_id="d",
+                visibility=Visibility.PUBLIC,
             ),
             RetrievalResult(
-                chunk_id="chunk_2", document_id="doc_1", chunk_text="test2",
-                score=0.8, rerank_score=0.0, tenant_id="t", department_id="d",
-                visibility=Visibility.PUBLIC
+                chunk_id="chunk_2",
+                document_id="doc_1",
+                chunk_text="test2",
+                score=0.8,
+                rerank_score=0.0,
+                tenant_id="t",
+                department_id="d",
+                visibility=Visibility.PUBLIC,
             ),
         ]
 
         results_b = [
             RetrievalResult(
-                chunk_id="chunk_2", document_id="doc_1", chunk_text="test2",
-                score=0.7, rerank_score=0.0, tenant_id="t", department_id="d",
-                visibility=Visibility.PUBLIC
+                chunk_id="chunk_2",
+                document_id="doc_1",
+                chunk_text="test2",
+                score=0.7,
+                rerank_score=0.0,
+                tenant_id="t",
+                department_id="d",
+                visibility=Visibility.PUBLIC,
             ),
             RetrievalResult(
-                chunk_id="chunk_3", document_id="doc_1", chunk_text="test3",
-                score=0.6, rerank_score=0.0, tenant_id="t", department_id="d",
-                visibility=Visibility.PUBLIC
+                chunk_id="chunk_3",
+                document_id="doc_1",
+                chunk_text="test3",
+                score=0.6,
+                rerank_score=0.0,
+                tenant_id="t",
+                department_id="d",
+                visibility=Visibility.PUBLIC,
             ),
         ]
 
@@ -349,7 +346,9 @@ class TestRRFFusion:
         # chunk_2 = 1/(60+1) + 1/(60+1) = 2/61
         # chunk_1 = 1/(60+1) = 1/61
         # chunk_3 = 1/(60+2) = 1/62
-        assert chunk_2.score > chunk_1.score, "chunk_2 should have higher score (appears in both lists)"
+        assert chunk_2.score > chunk_1.score, (
+            "chunk_2 should have higher score (appears in both lists)"
+        )
         assert chunk_1.score > chunk_3.score, "chunk_1 should have higher score (rank 1 vs rank 2)"
 
 
@@ -358,10 +357,7 @@ class TestBM25Signal:
 
     @pytest.mark.asyncio
     async def test_exact_policy_code_query_uses_bm25_signal(
-        self,
-        mock_embedder: MockEmbedder,
-        acl_filter: ACLFilter,
-        sample_chunks: list[ChunkCreate]
+        self, mock_embedder: MockEmbedder, acl_filter: ACLFilter, sample_chunks: list[ChunkCreate]
     ):
         """测试 3：精确政策代码查询使用 BM25 信号。"""
         bm25_store = InMemoryBM25Store()
@@ -371,26 +367,18 @@ class TestBM25Signal:
 
         # 使用精确关键词查询
         query = "身份证复印件"
-        results = await bm25_store.search(
-            query=query,
-            acl_filter=acl_filter,
-            top_k=10
-        )
+        results = await bm25_store.search(query=query, acl_filter=acl_filter, top_k=10)
 
         # 验证返回结果
         assert len(results) > 0, "Should return results for exact keyword query"
 
         # 验证包含关键词的 chunk 排在前面
         first_result = results[0]
-        assert "身份证" in first_result.chunk_text, \
-            "Top result should contain the exact keyword"
+        assert "身份证" in first_result.chunk_text, "Top result should contain the exact keyword"
 
     @pytest.mark.asyncio
     async def test_bm25_returns_relevant_results(
-        self,
-        mock_embedder: MockEmbedder,
-        acl_filter: ACLFilter,
-        sample_chunks: list[ChunkCreate]
+        self, mock_embedder: MockEmbedder, acl_filter: ACLFilter, sample_chunks: list[ChunkCreate]
     ):
         """测试 BM25 返回相关结果。"""
         bm25_store = InMemoryBM25Store()
@@ -400,19 +388,14 @@ class TestBM25Signal:
 
         # 查询
         query = "试用期"
-        results = await bm25_store.search(
-            query=query,
-            acl_filter=acl_filter,
-            top_k=10
-        )
+        results = await bm25_store.search(query=query, acl_filter=acl_filter, top_k=10)
 
         # 验证返回结果
         assert len(results) > 0, "Should return results"
 
-        # 验证包含关键词
-        for result in results:
-            # 至少有一个 token 匹配
-            pass  # BM25 可能返回不直接包含关键词的结果
+        assert any(query in result.chunk_text for result in results), (
+            "At least one BM25 result must contain the exact query"
+        )
 
 
 class TestDenseSignal:
@@ -420,10 +403,7 @@ class TestDenseSignal:
 
     @pytest.mark.asyncio
     async def test_semantic_query_uses_dense_signal(
-        self,
-        mock_embedder: MockEmbedder,
-        acl_filter: ACLFilter,
-        sample_chunks: list[ChunkCreate]
+        self, mock_embedder: MockEmbedder, acl_filter: ACLFilter, sample_chunks: list[ChunkCreate]
     ):
         """测试 4：语义查询使用 Dense 信号。"""
         vector_store = InMemoryVectorStore()
@@ -437,9 +417,7 @@ class TestDenseSignal:
         query = "新员工需要准备什么材料"
         query_embedding = await mock_embedder.embed_query(query)
         results = await vector_store.search(
-            query_embedding=query_embedding,
-            acl_filter=acl_filter,
-            top_k=10
+            query_embedding=query_embedding, acl_filter=acl_filter, top_k=10
         )
 
         # 验证返回结果
@@ -455,10 +433,7 @@ class TestReranker:
 
     @pytest.mark.asyncio
     async def test_reranker_reorders_candidates(
-        self,
-        mock_embedder: MockEmbedder,
-        acl_filter: ACLFilter,
-        sample_chunks: list[ChunkCreate]
+        self, mock_embedder: MockEmbedder, acl_filter: ACLFilter, sample_chunks: list[ChunkCreate]
     ):
         """测试 5：Reranker 重新排序候选结果。"""
         vector_store = InMemoryVectorStore()
@@ -473,17 +448,11 @@ class TestReranker:
         query = "入职"
         query_embedding = await mock_embedder.embed_query(query)
         results = await vector_store.search(
-            query_embedding=query_embedding,
-            acl_filter=acl_filter,
-            top_k=10
+            query_embedding=query_embedding, acl_filter=acl_filter, top_k=10
         )
 
         # Rerank
-        reranked = await reranker.rerank(
-            query=query,
-            results=results,
-            top_k=5
-        )
+        reranked = await reranker.rerank(query=query, results=results, top_k=5)
 
         # 验证 reranked 结果
         assert len(reranked) > 0, "Should return reranked results"
@@ -491,7 +460,9 @@ class TestReranker:
 
         # 验证所有结果都有 rerank_score
         for result in reranked:
-            assert result.rerank_score >= 0, "Reranked results should have non-negative rerank_score"
+            assert result.rerank_score >= 0, (
+                "Reranked results should have non-negative rerank_score"
+            )
 
 
 class TestEvidenceBundle:
@@ -499,10 +470,7 @@ class TestEvidenceBundle:
 
     @pytest.mark.asyncio
     async def test_evidence_bundle_contains_citations(
-        self,
-        mock_embedder: MockEmbedder,
-        acl_filter: ACLFilter,
-        sample_chunks: list[ChunkCreate]
+        self, mock_embedder: MockEmbedder, acl_filter: ACLFilter, sample_chunks: list[ChunkCreate]
     ):
         """测试 6：EvidenceBundle 包含 citations。"""
         vector_store = InMemoryVectorStore()
@@ -519,28 +487,18 @@ class TestEvidenceBundle:
         query = "入职材料"
         query_embedding = await mock_embedder.embed_query(query)
         dense_results = await vector_store.search(
-            query_embedding=query_embedding,
-            acl_filter=acl_filter,
-            top_k=10
+            query_embedding=query_embedding, acl_filter=acl_filter, top_k=10
         )
 
         # Sparse search
-        sparse_results = await bm25_store.search(
-            query=query,
-            acl_filter=acl_filter,
-            top_k=10
-        )
+        sparse_results = await bm25_store.search(query=query, acl_filter=acl_filter, top_k=10)
 
         # RRF fusion
         rrf = RRFFuser()
         fused_results = rrf.fuse(dense_results, sparse_results, top_k=10)
 
         # Rerank
-        reranked = await reranker.rerank(
-            query=query,
-            results=fused_results,
-            top_k=5
-        )
+        reranked = await reranker.rerank(query=query, results=fused_results, top_k=5)
 
         # Build evidence bundle
         builder = EvidenceBuilder()
