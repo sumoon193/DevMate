@@ -15,7 +15,6 @@ DevMate 是一个面向企业制度和知识库场景的 Agent Runtime。它把�
 - 使用租户、部门和可见性字段执行 ACL 过滤，检索结果不会跨权限泄露。
 - Agent Run 提供计划、工具调用、审批、事件时间线和 SSE 流式输出。
 - Checkpoint 保存执行位置，Event Store 保存业务事件，Projection 提供查询视图。
-- 长期记忆带有 `tenant_id`、provenance、TTL、重要性评分和内容去重；注入内容进入隔离区，过期或删除会同步清理 Milvus 索引。
 - 支持沙箱工具、审批决策、UNKNOWN 状态和恢复演练。
 - 提供 MCP、A2A、运行指标和 GitHub Webhook 接口。
 
@@ -30,10 +29,6 @@ DevMate 是一个面向企业制度和知识库场景的 Agent Runtime。它把�
 ```
 
 `full` 模式下，PostgreSQL 保存文档、任务、运行和审计数据，Redis 用于 Celery 和缓存，Milvus 保存向量，Elasticsearch 保存关键词索引，MinIO 保存原始文件。模型只负责生成结构化计划或解释，不负责绕过服务端权限和状态校验。
-
-### 长期记忆边界
-
-记忆写入必须携带来源事件 ID；同一租户的相同内容会合并来源和重要性，不同租户即使内容相同也不会互相检索。TTL 到期后记忆进入 `EXPIRED`，主动遗忘进入 `DELETED`，两种状态都会触发语义索引删除。检测到 Prompt Injection 的内容只进入 `QUARANTINED`，不会参与回答召回。
 
 ### Checkpoint、Event Store 与 Projection
 
@@ -99,14 +94,17 @@ npm --prefix frontend run dev
 
 ## Docker 或中间件启动方式
 
-### 启动完整环境
+### 启动完整依赖
 
 ```powershell
-$env:KEYCLOAK_ADMIN_PASSWORD = Read-Host "Keycloak 本地管理密码"
-docker compose --profile full up -d --build --wait
+Copy-Item .env.example .env
+docker compose up -d postgres redis minio minio-init etcd milvus elasticsearch
+$env:APP_MODE = "full"
+$env:GRAPH_CHECKPOINTER_BACKEND = "postgres"
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-完整环境入口为 <http://127.0.0.1:3100>，Keycloak 为 <http://127.0.0.1:8180>。首次启动后，在 Keycloak 的 `devmate` Realm 创建本地用户并分配 `devmate-user`、`devmate-approver` 或 `devmate-admin` 角色。真实密钥只放在本机环境变量或未提交的 `.env` 中。
+首次启动后可使用 `docker compose ps` 检查依赖健康状态。真实密钥只放在本机 `.env` 或环境变量中。
 
 ## 配置项和环境变量
 
@@ -126,10 +124,6 @@ docker compose --profile full up -d --build --wait
 | `QWEN_CHAT_MODEL` | `qwen-plus` | 文本模型名称 |
 | `QWEN_EMBEDDING_MODEL` | `text-embedding-v4` | Embedding 模型 |
 | `QWEN_RERANK_MODEL` | `qwen3-rerank` | 重排模型 |
-| `OIDC_ISSUER_URL` | 空 | full 模式 Keycloak issuer |
-| `OIDC_JWKS_URL` | 空 | 容器内 JWKS 地址 |
-| `OIDC_AUDIENCE` | `devmate-web` | Access Token 受众 |
-| `KEYCLOAK_ADMIN_PASSWORD` | 必填 | 本地 Keycloak 管理密码，不得提交 |
 
 完整示例见 `.env.example`。
 
@@ -146,9 +140,6 @@ docker compose --profile full up -d --build --wait
 | `POST` | `/agent-runs/{run_id}/approvals/{approval_id}` | 提交审批决定 |
 | `POST` | `/mcp` | Streamable HTTP MCP 接口 |
 | `GET` | `/.well-known/agent-card.json` | A2A Agent Card |
-| `GET` | `/memories` | 按租户读取长期记忆 |
-| `DELETE` | `/memories/{memory_id}` | 删除记忆并传播到语义索引 |
-| `GET` | `/infrastructure` | 读取真实探测或明确的 skipped 状态 |
 
 ## 请求示例与返回结果
 
@@ -156,10 +147,9 @@ docker compose --profile full up -d --build --wait
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/documents `
-  -H "Authorization: Bearer $env:ACCESS_TOKEN" `
   -F "file=@.\README.md" `
   -F "tenant_id=tenant_001" `
-  -F "department_id=dept_engineering" `
+  -F "department_id=dept_hr" `
   -F "visibility=department"
 ```
 
@@ -190,14 +180,7 @@ npm --prefix frontend run build
 $env:DEVMATE_BASE_URL = "http://127.0.0.1:8000"
 python .\scripts\devmate\live_smoke.py --component health
 python .\scripts\devmate\live_smoke.py --component model
-python .\scripts\devmate\live_smoke.py --component memory
-python .\scripts\devmate\live_smoke.py --component mcp
-python .\scripts\devmate\live_smoke.py --component queue
-python .\scripts\devmate\live_smoke.py --component otel
-python .\scripts\devmate\live_smoke.py --component ragas
 ```
-
-`memory` 会使用真实 PostgreSQL、Qwen Embedding 和 Milvus，验证记忆写入、租户隔离检索、主动遗忘及持久化状态，并在结束后清理临时数据。
 
 真实模型验证前设置：
 
@@ -207,16 +190,6 @@ $env:QWEN_CHAT_MODEL = "qwen-plus"
 ```
 
 live smoke 退出码统一为：`0` 通过，`1` 已连接但验证失败，`2` 缺少服务、密钥或授权。缺少真实配置时只报告 `BLOCKED`，不会将离线结果当作真实通过。
-
-浏览器 E2E 需要在 `devmate` Realm 创建具有 `devmate-user` 和 `devmate-approver` 角色的本地用户：
-
-用户必须设置 `tenant_id` 属性；文档和记忆接口在 full 模式只接受 Token 中的租户。
-
-```powershell
-$env:DEVMATE_E2E_USERNAME = "本地测试用户名"
-$env:DEVMATE_E2E_PASSWORD = "本地测试密码"
-npm --prefix frontend run test:e2e:live
-```
 
 ## 常见问题与故障排查
 
@@ -238,46 +211,6 @@ npm --prefix frontend run test:e2e:live
 - 文档查询必须经过租户、部门和可见性过滤。
 - 模型输出必须通过 Pydantic、工具权限和审批校验。
 - GitHub、数据库、对象存储和模型的真实验证必须单独配置，缺少授权时明确报告 `blocked`。
-
-## 生产验收与 IDEA 启动
-
-验收命令必须从被测试的 checkout 运行。先用 `$sha = (git rev-parse HEAD).Trim()` 记录当前 40 位 SHA；
-中央治理只接受所有证据均绑定该 SHA 的结果。再查看当前分支的门禁命令：
-
-~~~powershell
-python .\scripts\devmate\production_readiness.py --describe
-~~~
-
-完整本地环境（Windows PowerShell）：
-
-~~~powershell
-docker compose --profile full up -d --build --wait
-Invoke-WebRequest http://127.0.0.1:8000/health
-Invoke-WebRequest http://127.0.0.1:3100
-~~~
-
-轻量开发：
-
-~~~powershell
-uvicorn app.main:app --reload --port 8000
-npm --prefix frontend run dev -- --host 127.0.0.1
-~~~
-
-Java IDEA 不适用于本项目的 Python API。IntelliJ IDEA 需要安装 Python 插件；PyCharm 可直接打开仓库并运行 uvicorn app.main:app。PostgreSQL、Redis、Milvus、Elasticsearch、MinIO、Celery、Keycloak 和 OTel 仍按 Compose 启动。
-
-生产证据必须是 JSON 数组，且每一条包含当前 commit、命令、退出码、带时区时间戳和仓库相对原始结果路径：
-
-~~~powershell
-$sha = (git rev-parse HEAD).Trim()
-$centralRoot = "D:\Code\agent study" # change to your central governance checkout
-python (Join-Path $centralRoot "governance\project_status.py") devmate (Join-Path $centralRoot "reports\devmate\production-v2\evidence.json") --expected-commit $sha
-~~~
-
-退出码 0 表示全部门禁通过，1 表示已连接但断言失败，2 表示缺少服务、密钥或外部授权并保持 blocked。离线测试、Fake/Recorded 模型或旧 commit 证据都不能替代真实门禁。
-
-## Quantitative baseline and evidence
-
-The current acceptance branch has a reproducible record in the central governance repository: `reports/devmate/production-v2/quantitative-summary.json`. The `/health` probe is retained only as a local smoke baseline and is explicitly `resume_eligible: false`; its latency must not be presented as QPS, capacity, or performance improvement. Offline regression recorded 570 passed and 0 failed. The [deterministic landing evaluation report](docs/evidence/landing-eval-report.md) covers 20 case-level and 11 trajectory-level badcases. Across all five injection cases, interception moved from 0% to 80%; ACL, approval, cost-guard and recovery controls moved from 0% to 100%, while ungrounded-answer and duplicate-side-effect rates moved from 100% to 0%. `bc_inj_005` remains a documented Chinese-paraphrase injection gap. This is a safety/evidence-control result, not semantic RAG Recall@K. Qwen/RAGAS, authenticated Keycloak browser flows, authenticated MinIO/Elasticsearch round-trips and public stability remain `blocked`.
 
 ## License
 
