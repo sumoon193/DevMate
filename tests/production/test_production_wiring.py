@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -152,6 +153,17 @@ def test_real_ragas_source_uses_current_collections_api() -> None:
 
     assert "ragas.metrics.collections" in source
     assert "from ragas import evaluate" not in source
+
+
+def test_ragas_pins_langchain_community_vertex_compatibility() -> None:
+    project_root = Path(__file__).resolve().parents[2]
+    project = tomllib.loads((project_root / "pyproject.toml").read_text(encoding="utf-8"))
+    requirements = project["project"]["dependencies"]
+
+    assert any(
+        requirement.startswith("langchain-community<0.4.2")
+        for requirement in requirements
+    )
 
 
 def test_real_ragas_builds_installed_v04_metrics_without_network() -> None:
